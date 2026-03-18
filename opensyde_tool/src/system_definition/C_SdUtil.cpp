@@ -1930,7 +1930,7 @@ QString C_SdUtil::h_GetToolTipContentDpListElement(const C_OscNodeDataPoolListEl
 
          //value type
          c_ToolTipContent.append(static_cast<QString>("   ") + C_GtGetText::h_GetText("Value type: "));
-         if (pc_UiElement->q_InterpretAsString == false)
+         if (pc_DpListElement->q_InterpretAsString == false)
          {
             c_ToolTipContent.append(C_SdNdeDpUtil::h_ConvertContentTypeToString(
                                        pc_DpListElement->c_Value.GetType()));
@@ -1954,7 +1954,7 @@ QString C_SdUtil::h_GetToolTipContentDpListElement(const C_OscNodeDataPoolListEl
          c_ToolTipContent.append("\n");
 
          // do not show min, max, factor, offset, unit for string types
-         if (pc_UiElement->q_InterpretAsString == false)
+         if (pc_DpListElement->q_InterpretAsString == false)
          {
             // auto min max
             c_ToolTipContent.append(static_cast<QString>("   ") + C_GtGetText::h_GetText("Auto min/max: "));
@@ -2038,16 +2038,24 @@ QString C_SdUtil::h_GetToolTipContentDpListElement(const C_OscNodeDataPoolListEl
                c_ToolTipContent.append(pc_DpList->c_DataSets[u32_PosDataset].c_Name.c_str());
                c_ToolTipContent.append(": ");
                c_HelpVector.clear();
-               C_SdNdeDpContentUtil::h_GetValuesAsScaledString(pc_DpListElement->c_DataSetValues[u32_PosDataset],
-                                                               pc_DpListElement->f64_Factor,
-                                                               pc_DpListElement->f64_Offset, c_HelpVector);
                QString c_HelpString = "";
-               for (uint32_t u32_PosArray = 0; u32_PosArray < c_HelpVector.size(); u32_PosArray++)
+               if (pc_DpListElement->q_InterpretAsString)
                {
-                  c_HelpString.append(c_HelpVector[u32_PosArray]);
-                  c_HelpString.append(";");
+                  c_HelpString =
+                     C_SdNdeDpContentUtil::h_ConvertToString(pc_DpListElement->c_DataSetValues[u32_PosDataset]);
                }
-               c_HelpString.chop(1); // remove last ";"
+               else
+               {
+                  C_SdNdeDpContentUtil::h_GetValuesAsScaledString(pc_DpListElement->c_DataSetValues[u32_PosDataset],
+                                                                  pc_DpListElement->f64_Factor,
+                                                                  pc_DpListElement->f64_Offset, c_HelpVector);
+                  for (uint32_t u32_PosArray = 0; u32_PosArray < c_HelpVector.size(); u32_PosArray++)
+                  {
+                     c_HelpString.append(c_HelpVector[u32_PosArray]);
+                     c_HelpString.append(";");
+                  }
+                  c_HelpString.chop(1); // remove last ";"
+               }
                c_ToolTipContent.append(c_HelpString);
                c_ToolTipContent.append("\n");
             }

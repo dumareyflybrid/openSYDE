@@ -112,9 +112,13 @@ C_SydeSup::E_Result C_SydeSupWindows::m_OpenCan(const C_SclString & orc_CanDrive
          e_Result = eERR_CAN_IF_LOAD_FAILED;
          break;
       case CAN_COMP_ERR_DLL_FORMAT:
-         h_WriteLog("Setup CAN", "CAN opening failed because DLL is not in correct format.", true);
-         e_Result = eERR_CAN_IF_LOAD_FAILED;
-         break;
+         {
+            const C_SclString c_Bitness = static_cast<C_SclString>(8 * sizeof(size_t));
+            h_WriteLog("Setup CAN", "CAN opening failed because DLL is not in correct format. "
+                       "Make sure to use a " + c_Bitness + "-bit DLL.", true);
+            e_Result = eERR_CAN_IF_LOAD_FAILED;
+            break;
+         }
       default:
          h_WriteLog("Setup CAN", "CAN opening failed because of unknown reason.", true);
          e_Result = eERR_CAN_IF_LOAD_FAILED;
@@ -235,7 +239,7 @@ C_SclString C_SydeSupWindows::m_GetApplicationVersion(const C_SclString & orc_Ap
                             reinterpret_cast<PVOID *>(&pc_Info), //lint !e929 !e9176
                             &u32_ValSize) != FALSE)
          {
-            c_Version.PrintFormatted("V%d.%02dr%d", (pc_Info->dwFileVersionMS >> 16U),
+            c_Version.PrintFormatted("V%lu.%02lur%lu", (pc_Info->dwFileVersionMS >> 16U),
                                      pc_Info->dwFileVersionMS & 0x0000FFFFUL,
                                      (pc_Info->dwFileVersionLS >> 16U));
          }

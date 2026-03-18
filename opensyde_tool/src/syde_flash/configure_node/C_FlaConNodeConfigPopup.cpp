@@ -284,13 +284,16 @@ int32_t C_FlaConNodeConfigPopup::m_InitDcSequence(void)
               this, &C_FlaConNodeConfigPopup::m_DeviceInfoRead);
    }
 
-   s32_Return = this->mpc_DcSequences->Init(this->mc_CanDllPath.toStdString(), this->mu32_CurrentBitrate);
+   s32_Return = this->mpc_DcSequences->InitDcSequences(this->mc_CanDllPath.toStdString(), this->mu32_CurrentBitrate);
 
    if (s32_Return != C_NO_ERR)
    {
+      const uint32_t u32_BITNESS = 8 * sizeof(size_t);
       C_OgeWiCustomMessage c_Message(this, C_OgeWiCustomMessage::eERROR);
       c_Message.SetHeading(C_GtGetText::h_GetText("Initialization failed"));
-      c_Message.SetDescription(C_GtGetText::h_GetText("Failed to initialize CAN interface."));
+      c_Message.SetDescription(
+         static_cast<QString>(C_GtGetText::h_GetText("Failed to initialize CAN interface. "
+                                                     "Make sure to use a %1-bit DLL.")).arg(u32_BITNESS));
       c_Message.SetDetails(static_cast<QString>(C_GtGetText::h_GetText("For details see ")) +
                            C_Uti::h_GetLink(C_GtGetText::h_GetText("log file"), mc_STYLESHEET_GUIDE_COLOR_LINK,
                                             C_OscLoggingHandler::h_GetCompleteLogFileLocation().c_str()) + ".");

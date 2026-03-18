@@ -120,6 +120,7 @@ const QColor mc_STYLE_GUIDE_COLOR_CH4 = QColor(140, 140, 141);
 
 //Style guide colors (design studio) for dynamic stylesheets
 const QString mc_STYLESHEET_GUIDE_COLOR_0 = "rgb(255, 255, 255)";
+const QString mc_STYLESHEET_GUIDE_COLOR_3 = "rgb(42, 42, 91)";
 const QString mc_STYLESHEET_GUIDE_COLOR_4 = "rgb(57, 57, 109)";
 const QString mc_STYLESHEET_GUIDE_COLOR_8 = "rgb(130, 130, 143)";
 const QString mc_STYLESHEET_GUIDE_COLOR_10 = "rgb(206, 206, 217)";
@@ -134,19 +135,19 @@ const QFont mc_STYLE_GUIDE_FONT_REGULAR_10  = QFont("Segoe UI", 10);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_11  = QFont("Segoe UI", 11);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_12  = QFont("Segoe UI", 12);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_13  = QFont("Segoe UI", 13);
-const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_13 = QFont("Segoe UI Semibold", 13);
+const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_13 = QFont("Segoe UI", 13, static_cast<int32_t>(QFont::DemiBold));
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_14  = QFont("Segoe UI", 14);
-const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_14 = QFont("Segoe UI Semibold", 14);
+const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_14 = QFont("Segoe UI", 14, static_cast<int32_t>(QFont::DemiBold));
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_15  = QFont("Segoe UI", 15);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_16  = QFont("Segoe UI", 16);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_16_ITALIC  = QFont("Segoe UI", 16, -1, true);
-const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_16 = QFont("Segoe UI Semibold", 16);
+const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_16 = QFont("Segoe UI", 16, static_cast<int32_t>(QFont::DemiBold));
 const QFont mc_STYLE_GUIDE_FONT_BOLD_16 = QFont("Segoe UI", 16, static_cast<int32_t>(QFont::Bold));
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_18  = QFont("Segoe UI", 18);
 const QFont mc_STYLE_GUIDE_FONT_BOLD_18 = QFont("Segoe UI", 18, static_cast<int32_t>(QFont::Bold));
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_20  = QFont("Segoe UI", 20);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_23  = QFont("Segoe UI", 23);
-const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_24 = QFont("Segoe UI Semibold", 24);
+const QFont mc_STYLE_GUIDE_FONT_SEMIBOLD_24 = QFont("Segoe UI", 24, static_cast<int32_t>(QFont::DemiBold));
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_25  = QFont("Segoe UI", 25);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_28  = QFont("Segoe UI", 28);
 const QFont mc_STYLE_GUIDE_FONT_REGULAR_30  = QFont("Segoe UI", 30);
@@ -202,8 +203,8 @@ const QSize mc_ICON_SIZE_20 = QSize(20, 20);
 const QSize mc_ICON_SIZE_16 = QSize(16, 16);
 
 // Paths
-const QString mc_DLL_PATH_PEAK = "STW_dlls\\stwpeak2\\stwpeak2.dll";
-const QString mc_DLL_PATH_VECTOR = "STW_dlls\\stwvec32\\stwvec32.dll";
+const QString mc_DLL_PATH_PEAK = "STW_dlls\\stwpeak2\\stwpeak2_64.dll";
+const QString mc_DLL_PATH_VECTOR = "STW_dlls\\stwvec\\stwvec64.dll";
 
 // Identifier of update package subsections or items
 const uint32_t mu32_UPDATE_PACKAGE_NODE_SECTION_TYPE_DATABLOCK = 0U;
@@ -294,6 +295,10 @@ const int32_t ms32_USER_ROLE_INTERACTION_MULTI_SELECT_COMBO_BOX_STRINGS_LIST =
 //3: Offset (float64) encoded as string
 const int32_t ms32_USER_ROLE_INTERACTION_GENERIC_SPIN_BOX_PARAMETERS_LIST =
    static_cast<int32_t>(Qt::UserRole) + 80;
+//Generic table interface: String length value to use if flag set (type: any number)
+const int32_t ms32_USER_ROLE_INTERACTION_STR_LENGTH = static_cast<int32_t>(Qt::UserRole) + 81;
+//Generic table interface: Flag to see if cell requires a string length while interacting (type: bool, default: false)
+const int32_t ms32_USER_ROLE_INTERACTION_USE_STR_LENGTH = static_cast<int32_t>(Qt::UserRole) + 82;
 
 /* -- Types --------------------------------------------------------------------------------------------------------- */
 

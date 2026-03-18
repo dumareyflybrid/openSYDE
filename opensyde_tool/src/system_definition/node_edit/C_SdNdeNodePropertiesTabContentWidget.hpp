@@ -57,11 +57,12 @@ Q_SIGNALS:
                        const bool oq_CombineItemAndSubSubName);
    void SigBusBitrateClicked(const uint32_t & oru32_BusIndex, const QString & orc_BusName);
    void SigNodePropChanged(void);
+   void SigNodeXappSupportChanged(void);
    void SigUpdateTrigger(void);
 
 private:
    Ui::C_SdNdeNodePropertiesTabContentWidget * mpc_Ui;
-   void m_UpdateTrigger(const uint32_t ou32_NodeIndex);
+   void m_UpdateTrigger(const uint32_t ou32_NodeIndex, const bool oq_OnlyUpdateProperties);
 
    //Avoid call
    C_SdNdeNodePropertiesTabContentWidget(const C_SdNdeNodePropertiesTabContentWidget &);

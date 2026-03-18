@@ -12,10 +12,8 @@
 /* -- Includes ------------------------------------------------------------------------------------------------------ */
 #include "precomp_headers.hpp"
 
-#include "stwtypes.hpp"
 #include "stwerrors.hpp"
 #include "TglUtils.hpp"
-#include "C_CieUtil.hpp"
 #include "C_GtGetText.hpp"
 #include "C_SclChecksums.hpp"
 #include "C_PuiSdHandler.hpp"
@@ -54,6 +52,66 @@ C_PuiSvDashboard::C_PuiSvDashboard(void) :
    ms32_TabIndex(-1),
    me_Type(eSCENE)
 {
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief   Default copy constructor (implemented to avoid compiler complaining)
+
+   \param[in]  orc_Source  Source where to copy from
+*/
+//----------------------------------------------------------------------------------------------------------------------
+C_PuiSvDashboard::C_PuiSvDashboard(const C_PuiSvDashboard & orc_Source) :
+   C_PuiBsElements(orc_Source) /*Call base class copy constructor*/,
+   mc_Charts(orc_Source.mc_Charts),
+   mc_Labels(orc_Source.mc_Labels),
+   mc_PieCharts(orc_Source.mc_PieCharts),
+   mc_ProgressBars(orc_Source.mc_ProgressBars),
+   mc_SpinBoxes(orc_Source.mc_SpinBoxes),
+   mc_Sliders(orc_Source.mc_Sliders),
+   mc_Tables(orc_Source.mc_Tables),
+   mc_Toggles(orc_Source.mc_Toggles),
+   mc_ParamWidgets(orc_Source.mc_ParamWidgets),
+   mc_TabChart(orc_Source.mc_TabChart),
+   mc_Name(orc_Source.mc_Name),
+   mc_Comment(orc_Source.mc_Comment),
+   mq_Active(orc_Source.mq_Active),
+   ms32_TabIndex(orc_Source.ms32_TabIndex),
+   me_Type(orc_Source.me_Type)
+{
+   // No additional logic needed for default member-wise copy
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief   Default copy assignment operator (implemented to avoid compiler complaining)
+
+   \param[in]  orc_Source  Source where to copy from
+
+   \return
+   Instance with new values
+*/
+//----------------------------------------------------------------------------------------------------------------------
+C_PuiSvDashboard & C_PuiSvDashboard::operator =(const C_PuiSvDashboard & orc_Source) &
+{
+   if (this != &orc_Source) // Protect against self-assignment
+   {
+      C_PuiBsElements::operator =(orc_Source); // Call base class copy assignment
+      mc_Name = orc_Source.mc_Name;
+      mc_Comment = orc_Source.mc_Comment;
+      mq_Active = orc_Source.mq_Active;
+      ms32_TabIndex = orc_Source.ms32_TabIndex;
+      me_Type = orc_Source.me_Type;
+      mc_Charts = orc_Source.mc_Charts;
+      mc_Labels = orc_Source.mc_Labels;
+      mc_PieCharts = orc_Source.mc_PieCharts;
+      mc_ProgressBars = orc_Source.mc_ProgressBars;
+      mc_SpinBoxes = orc_Source.mc_SpinBoxes;
+      mc_Sliders = orc_Source.mc_Sliders;
+      mc_Tables = orc_Source.mc_Tables;
+      mc_Toggles = orc_Source.mc_Toggles;
+      mc_ParamWidgets = orc_Source.mc_ParamWidgets;
+      mc_TabChart = orc_Source.mc_TabChart;
+   }
+   return (*this);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -2206,11 +2264,11 @@ void C_PuiSvDashboard::h_OnSyncNodeDataPoolListElementAboutToBeDeleted(
 {
    if (orc_DataElementId.GetIsValid() == true)
    {
-      if (C_PuiSdNodeDataPoolListElementIdSyncUtil::h_OnSyncNodeDataPoolListAboutToBeDeleted(orc_DataElementId,
-                                                                                             ou32_NodeIndex,
-                                                                                             ou32_DataPoolIndex,
-                                                                                             ou32_ListIndex,
-                                                                                             ou32_ElementIndex))
+      if (C_PuiSdNodeDataPoolListElementIdSyncUtil::h_OnSyncNodeDataPoolListElementAboutToBeDeleted(orc_DataElementId,
+                                                                                                    ou32_NodeIndex,
+                                                                                                    ou32_DataPoolIndex,
+                                                                                                    ou32_ListIndex,
+                                                                                                    ou32_ElementIndex))
       {
          mh_MarkInvalid(orc_DataElementId);
       }
@@ -3427,18 +3485,14 @@ void C_PuiSvDashboard::mh_SyncContentToRangeChanged(const uint32_t ou32_NodeInde
       tgl_assert(orc_Element.c_DataPoolElementsConfig.size() == 1UL);
       if (rc_CurElement.c_ElementId.GetIsValid())
       {
-         if (rc_CurElement.c_ElementId.CheckSameDataElement(C_OscNodeDataPoolListElementId(ou32_NodeIndex,
-                                                                                           ou32_DataPoolIndex,
-                                                                                           ou32_ListIndex,
-                                                                                           ou32_ElementIndex)))
-         {
-            C_OscNodeDataPoolContentUtil::E_ValueChangedTo e_Unused;
-            tgl_assert(C_OscNodeDataPoolContentUtil::h_SetValueInMinMaxRange(orc_MinElement,
-                                                                             orc_MaxElement,
-                                                                             orc_Element.c_InitialValue, e_Unused,
-                                                                             C_OscNodeDataPoolContentUtil::eLEAVE_VALUE) ==
-                       C_NO_ERR);
-         }
+         C_PuiSdNodeDataPoolListElementIdSyncUtil::h_OnSyncNodeDataPoolListElementRangeChanged(ou32_NodeIndex,
+                                                                                               ou32_DataPoolIndex,
+                                                                                               ou32_ListIndex,
+                                                                                               ou32_ElementIndex,
+                                                                                               orc_MinElement,
+                                                                                               orc_MaxElement,
+                                                                                               rc_CurElement.c_ElementId,
+                                                                                               orc_Element.c_InitialValue);
       }
    }
 }
@@ -3473,17 +3527,14 @@ void C_PuiSvDashboard::mh_SyncSlidersToElementTypeOrArrayChanged(const uint32_t 
          const C_PuiSvDbNodeDataElementConfig & rc_DataElementConfig =
             pc_SliderWidgets->c_DataPoolElementsConfig[u32_ItElement];
          const C_PuiSvDbNodeDataPoolListElementId & rc_DataElementId = rc_DataElementConfig.c_ElementId;
-         if (rc_DataElementId ==
-             C_PuiSvDbNodeDataPoolListElementId(ou32_NodeIndex, ou32_DataPoolIndex, ou32_ListIndex,
-                                                ou32_ElementIndex,
-                                                C_PuiSvDbNodeDataPoolListElementId::eDATAPOOL_ELEMENT, false,
-                                                0UL))
-         {
-            C_OscNodeDataPoolContent & rc_CurElement = pc_SliderWidgets->c_Value;
-
-            rc_CurElement.SetType(oe_Type);
-            rc_CurElement.SetArray(oq_IsArray);
-         }
+         C_PuiSdNodeDataPoolListElementIdSyncUtil::h_OnSyncNodeDataPoolListElementTypeOrArrayChanged(ou32_NodeIndex,
+                                                                                                     ou32_DataPoolIndex,
+                                                                                                     ou32_ListIndex,
+                                                                                                     ou32_ElementIndex,
+                                                                                                     oe_Type,
+                                                                                                     oq_IsArray,
+                                                                                                     rc_DataElementId,
+                                                                                                     pc_SliderWidgets->c_Value);
       }
    }
 }

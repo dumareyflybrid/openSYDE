@@ -68,7 +68,7 @@ C_SebGraphicsView::C_SebGraphicsView(QWidget * const opc_Parent) :
    mq_ViewPortPosVerSet(false),
    mq_ScrollingActive(false),
    mq_DarkMode(false),
-   mc_LastMouseEvent(QEvent::None, QPointF(), QPointF(), QPointF(), Qt::NoButton, Qt::NoButton, Qt::NoModifier),
+   mc_LastMouseEventPos(QPoint()),
    mc_DragMoveDistance(0.0, 0.0),
    ms32_ZoomValue(100),
    mq_SubtleSurroundGradient(false),
@@ -228,20 +228,34 @@ void C_SebGraphicsView::SetSubtleSurroundGradient(const bool & orq_SubtleSurroun
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Show tool tip
 
-   \param[in]  orc_ScenePos   Scne position to show tool tip at
-   \param[in]  orc_Heading    Heading of tool tip
-   \param[in]  orc_Content    Content of tool tip
-   \param[in]  oe_Type        Type
+   \param[in]  orc_ScenePos      Scne position to show tool tip at
+   \param[in]  orc_Heading       Heading of tool tip
+   \param[in]  orc_Content       Content of tool tip
+   \param[in]  oe_Type           Type
+   \param[in]  orc_ImagePath     Path to the image to be displayed
+   \param[in]  orc_ImageCaption  Caption to describe the image
 */
 //----------------------------------------------------------------------------------------------------------------------
 void C_SebGraphicsView::ShowToolTip(const QPointF & orc_ScenePos, const QString & orc_Heading,
-                                    const QString & orc_Content, const C_NagToolTip::E_Type oe_Type)
+                                    const QString & orc_Content, const C_NagToolTipWithImage::E_Type oe_Type,
+                                    const QString & orc_ImagePath, const QString & orc_ImageCaption)
 {
    const QPointF c_AdaptedScenePos(orc_ScenePos.x(), orc_ScenePos.y());
 
    mc_ToolTip.SetHeading(orc_Heading);
    mc_ToolTip.SetContent(orc_Content);
    mc_ToolTip.SetType(oe_Type);
+
+   // Show image only if path has been explicitly set.
+   if (orc_ImagePath.isEmpty() == false)
+   {
+      mc_ToolTip.ShowImage(orc_ImagePath, orc_ImageCaption);
+   }
+   // If no path has been set for the image, then image (GUI elements) should be hidden
+   else
+   {
+      mc_ToolTip.HideImage();
+   }
    mc_ToolTip.show();
    mc_ToolTip.DoMove(this->mapToGlobal(this->mapFromScene(c_AdaptedScenePos)));
 }
@@ -453,7 +467,7 @@ void C_SebGraphicsView::mouseMoveEvent(QMouseEvent * const opc_Event)
          }
       }
 
-      this->mc_LastMouseEvent = *opc_Event;
+      this->mc_LastMouseEventPos = opc_Event->pos();
    }
 
    if (q_OverrideCursorNecessary != this->mq_OverrideCursorActive)
@@ -515,7 +529,7 @@ void C_SebGraphicsView::mousePressEvent(QMouseEvent * const opc_Event)
       }
 
       // store the event
-      this->mc_LastMouseEvent = *opc_Event;
+      this->mc_LastMouseEventPos = opc_Event->pos();
 
       // using buttonS to make sure that really only one of the button is clicked
       if (opc_Event->buttons() == static_cast<int32_t>(Qt::RightButton))
@@ -884,7 +898,7 @@ void C_SebGraphicsView::m_DragMove(const QMouseEvent * const opc_Event)
 {
    QScrollBar * const pc_HorBar = this->horizontalScrollBar();
    QScrollBar * const pc_VerBar = this->verticalScrollBar();
-   const QPointF c_Delta = opc_Event->pos() - this->mc_LastMouseEvent.pos();
+   const QPointF c_Delta = opc_Event->pos() - this->mc_LastMouseEventPos;
 
    // calculate the complete difference of this move
    this->mc_DragMoveDistance += c_Delta;

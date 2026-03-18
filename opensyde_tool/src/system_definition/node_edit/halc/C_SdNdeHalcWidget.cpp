@@ -93,6 +93,8 @@ C_SdNdeHalcWidget::C_SdNdeHalcWidget(QWidget * const opc_Parent) :
 
    // panel colors
    this->mpc_Ui->pc_WiHalcDefFilePanel->SetBackgroundColor(11);
+   this->mpc_Ui->pc_WiChannelTreeContent->SetBackgroundColor(12);
+   // styling the tree's background via stylesheet background-color somehow effects the complete layout
    this->mpc_Ui->pc_LabFileTitle->SetBackgroundColor(0);
    this->mpc_Ui->pc_LabFileTitle->SetForegroundColor(3);
    this->mpc_Ui->pc_LabFileTitle->SetFontPixel(16, true);
@@ -440,7 +442,7 @@ void C_SdNdeHalcWidget::m_OnCleanUpClicked(void) const
    c_MessageBox.SetHeading(C_GtGetText::h_GetText("Delete Hardware Description"));
    c_MessageBox.SetOkButtonText(C_GtGetText::h_GetText("Delete"));
    c_MessageBox.SetNoButtonText(C_GtGetText::h_GetText("Keep"));
-   c_MessageBox.SetCustomMinHeight(210, 210);
+   c_MessageBox.SetCustomMinHeight(220, 220);
    if (c_MessageBox.Execute() == C_OgeWiCustomMessage::eOK)
    {
       this->m_CleanUpHalcDefinition();

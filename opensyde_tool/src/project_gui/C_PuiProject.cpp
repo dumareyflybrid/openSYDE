@@ -21,7 +21,7 @@
 #include <QApplication>
 
 #include "C_PuiProject.hpp"
-#include "C_OscAesFile.hpp"
+#include "C_OscSecurityAesFile.hpp"
 #include "C_OscZipFile.hpp"
 #include "C_OscProjectFiler.hpp"
 #include "C_PuiSdHandler.hpp"
@@ -32,6 +32,7 @@
 #include "C_UsHandler.hpp"
 #include "C_GtGetText.hpp"
 #include "C_PuiSvHandler.hpp"
+#include "C_OscLoggingHandler.hpp"
 
 /* -- Used Namespaces ----------------------------------------------------------------------------------------------- */
 
@@ -171,7 +172,8 @@ int32_t C_PuiProject::SaveCurrentProjectForServiceMode(const QString & orc_FileP
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief   Load project
 
-   \param[in]  opu16_FileVersion    Optional storage for system definition file version
+   \param[in]      opu16_FileVersion               Optional storage for system definition file version
+   \param[in,out]  opc_ErrorDetailsMissingDevices  (Optional parameter) if C_OVERFLOW contains types of all missing devices
 
    \return
    C_RD_WR     Problems accessing file system (e.g. no read access to file)
@@ -184,7 +186,8 @@ int32_t C_PuiProject::SaveCurrentProjectForServiceMode(const QString & orc_FileP
    C_BUSY      Problems with removing temporary folders
 */
 //----------------------------------------------------------------------------------------------------------------------
-int32_t C_PuiProject::Load(uint16_t * const opu16_FileVersion)
+int32_t C_PuiProject::Load(uint16_t * const opu16_FileVersion,
+                           std::vector<stw::scl::C_SclString> * const opc_ErrorDetailsMissingDevices)
 {
    int32_t s32_Retval;
 
@@ -192,11 +195,11 @@ int32_t C_PuiProject::Load(uint16_t * const opu16_FileVersion)
 
    if (this->m_IsServiceModeProject() == false)
    {
-      s32_Retval = this->m_LoadProject(opu16_FileVersion);
+      s32_Retval = this->m_LoadProject(opu16_FileVersion, opc_ErrorDetailsMissingDevices);
    }
    else
    {
-      s32_Retval = this->m_LoadServiceModeProject(this->mc_Password, opu16_FileVersion);
+      s32_Retval = this->m_LoadServiceModeProject(this->mc_Password, opu16_FileVersion, opc_ErrorDetailsMissingDevices);
    }
 
    QApplication::restoreOverrideCursor();
@@ -492,8 +495,9 @@ int32_t C_PuiProject::PrepareLoadInitialProject(void)
       2. If none: first project in recent projects list with existing .syde
       3. If failed: empty project (next recent projects are loaded afterwards)
 
-   \param[out]  opu16_FileVersion   file version
-   \param[out]  orc_LoadedProject   project that was tried to load (if load fails, this->mc_Path gets overwritten)
+   \param[out]     opu16_FileVersion               file version
+   \param[out]     orc_LoadedProject               project that was tried to load (if load fails, this->mc_Path gets overwritten)
+   \param[in,out]  opc_ErrorDetailsMissingDevices  (Optional parameter) if C_OVERFLOW contains types of all missing devices
 
   \return
    C_RD_WR     Problems accessing file system (e.g. no read access to file)
@@ -506,10 +510,11 @@ int32_t C_PuiProject::PrepareLoadInitialProject(void)
    C_BUSY      Problems with removing temporary folders
 */
 //----------------------------------------------------------------------------------------------------------------------
-int32_t C_PuiProject::LoadInitialProject(uint16_t * const opu16_FileVersion, QString & orc_LoadedProject)
+int32_t C_PuiProject::LoadInitialProject(uint16_t * const opu16_FileVersion, QString & orc_LoadedProject,
+                                         std::vector<stw::scl::C_SclString> * const opc_ErrorDetailsMissingDevices)
 {
    // Load it
-   const int32_t s32_Error = this->Load(opu16_FileVersion);
+   const int32_t s32_Error = this->Load(opu16_FileVersion, opc_ErrorDetailsMissingDevices);
 
    orc_LoadedProject = this->GetPath();
 
@@ -712,10 +717,11 @@ int32_t C_PuiProject::m_SaveServiceModeProject(const QString & orc_FilePath, con
                                              c_TemporaryPath.toStdString().c_str());
 
          // Create the encrypted zip file
-         s32_Retval = C_OscAesFile::h_CreateEncryptedZipFile(c_TemporaryPath.toStdString().c_str(),
-                                                             c_AllFilesRelative,
-                                                             orc_FilePath.toStdString().c_str(),
-                                                             orc_Password.toStdString().c_str(), &c_ErrorString);
+         s32_Retval = C_OscSecurityAesFile::h_CreateEncryptedZipFile(c_TemporaryPath.toStdString().c_str(),
+                                                                     c_AllFilesRelative,
+                                                                     orc_FilePath.toStdString().c_str(),
+                                                                     orc_Password.toStdString().c_str(),
+                                                                     &c_ErrorString);
       }
    }
 
@@ -735,7 +741,8 @@ int32_t C_PuiProject::m_SaveServiceModeProject(const QString & orc_FilePath, con
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief   Load project
 
-   \param[in]  opu16_FileVersion    Optional storage for system definition file version
+   \param[in]      opu16_FileVersion               Optional storage for system definition file version
+   \param[in,out]  opc_ErrorDetailsMissingDevices  (Optional parameter) if C_OVERFLOW contains types of all missing devices
 
    \return
    C_RD_WR  Problems accessing file system (e.g. no read access to file)
@@ -746,7 +753,8 @@ int32_t C_PuiProject::m_SaveServiceModeProject(const QString & orc_FilePath, con
    C_OVERFLOW  node in system definition references a device not part of the device definitions
 */
 //----------------------------------------------------------------------------------------------------------------------
-int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion)
+int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion,
+                                    std::vector<stw::scl::C_SclString> * const opc_ErrorDetailsMissingDevices)
 {
    int32_t s32_Retval;
 
@@ -769,11 +777,17 @@ int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion)
             //If this path does not work try the deprecated path
             if (c_FileInfoSysDef.exists() == false)
             {
+               osc_write_log_info("Loading project",
+                                  static_cast<C_SclString>("Could not find system definition file \"") + c_SystemDefintionPath.toStdString().c_str() +
+                                  "\".");
                mh_AdaptProjectPathToSystemDefinitionV2(this->mc_Path, c_SystemDefintionPath);
+               osc_write_log_info("Loading project",
+                                  static_cast<C_SclString>("Trying previous version 2 path \"") + c_SystemDefintionPath.toStdString().c_str() +
+                                  "\".");
             }
             //Load system definition
             s32_Retval = C_PuiSdHandler::h_GetInstance()->LoadFromFile(
-               c_SystemDefintionPath.toStdString().c_str(), opu16_FileVersion);
+               c_SystemDefintionPath.toStdString().c_str(), opu16_FileVersion, opc_ErrorDetailsMissingDevices);
             if (s32_Retval == C_NO_ERR)
             {
                QString c_SystemViewsPath;
@@ -784,7 +798,13 @@ int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion)
                   //If this path does not work try the deprecated path
                   if (c_FileInfoSysView.exists() == false)
                   {
+                     osc_write_log_info("Loading project",
+                                        static_cast<C_SclString>("Could not find system views file \"") + c_SystemViewsPath.toStdString().c_str() +
+                                        "\".");
                      mh_AdaptProjectPathToSystemViewsV1(this->mc_Path, c_SystemViewsPath);
+                     osc_write_log_info("Loading project",
+                                        static_cast<C_SclString>("Trying previous version 1 path \"") + c_SystemViewsPath.toStdString().c_str() +
+                                        "\".");
                   }
                   //Load system views
                   s32_Retval = C_PuiSvHandler::h_GetInstance()->LoadFromFile(
@@ -814,8 +834,9 @@ int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion)
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief   Load project
 
-   \param[in]  orc_Password         Password for service project
-   \param[in]  opu16_FileVersion    Optional storage for system definition file version
+   \param[in]      orc_Password                    Password for service project
+   \param[in]      opu16_FileVersion               Optional storage for system definition file version
+   \param[in,out]  opc_ErrorDetailsMissingDevices  (Optional parameter) if C_OVERFLOW contains types of all missing devices
 
    \return
    C_RD_WR  Problems accessing file system (e.g. no read access to file)
@@ -829,7 +850,8 @@ int32_t C_PuiProject::m_LoadProject(uint16_t * const opu16_FileVersion)
 
 */
 //----------------------------------------------------------------------------------------------------------------------
-int32_t C_PuiProject::m_LoadServiceModeProject(const QString & orc_Password, uint16_t * const opu16_FileVersion)
+int32_t C_PuiProject::m_LoadServiceModeProject(const QString & orc_Password, uint16_t * const opu16_FileVersion,
+                                               std::vector<stw::scl::C_SclString> * const opc_ErrorDetailsMissingDevices)
 {
    int32_t s32_Retval;
    const QString c_OriginalPath = this->GetPath();
@@ -841,14 +863,14 @@ int32_t C_PuiProject::m_LoadServiceModeProject(const QString & orc_Password, uin
    C_SclString c_ErrorString;
 
    // Decrypt the encrypted zip file
-   s32_Retval = C_OscAesFile::h_UnpackEncryptedZipFile(c_OriginalPath.toStdString().c_str(),
-                                                       c_TemporaryPath.toStdString().c_str(),
-                                                       orc_Password.toStdString().c_str(), &c_ErrorString);
+   s32_Retval = C_OscSecurityAesFile::h_UnpackEncryptedZipFile(c_OriginalPath.toStdString().c_str(),
+                                                               c_TemporaryPath.toStdString().c_str(),
+                                                               orc_Password.toStdString().c_str(), &c_ErrorString);
 
    if (s32_Retval == C_NO_ERR)
    {
       this->SetPath(c_TemporaryProjectPath);
-      s32_Retval = this->m_LoadProject(opu16_FileVersion);
+      s32_Retval = this->m_LoadProject(opu16_FileVersion, opc_ErrorDetailsMissingDevices);
 
       // Reset path
       this->SetPath(c_OriginalPath);

@@ -204,6 +204,10 @@ void C_UsFiler::mh_SaveNode(C_SclIniFile & orc_Ini, const QString & orc_SectionN
    const QString c_NodeIdSelectedDatapoolName = static_cast<QString>("%1Selected_datapool_name").arg(orc_NodeIdBase);
    const QString c_NodeIdSelectedProtocol = static_cast<QString>("%1Selected_protocol").arg(orc_NodeIdBase);
    const QString c_NodeIdSelectedInterface = static_cast<QString>("%1Selected_interface").arg(orc_NodeIdBase);
+   const QString c_NodeIdSelectedDataLoggerLogJobIndex = static_cast<QString>("%1Selected_DataLogger_LogJobindex").arg(
+      orc_NodeIdBase);
+   const QString c_DataLoggerOverviewWidgetSelected = static_cast<QString>("%1Selected_DataLogger_LogJob_Overview").arg(
+      orc_NodeIdBase);
    const QList<QString> c_DatapoolKeyList = orc_Node.GetDatapoolKeysInternal();
    int32_t s32_ItDatapool = 0;
 
@@ -336,6 +340,14 @@ void C_UsFiler::mh_SaveNode(C_SclIniFile & orc_Ini, const QString & orc_SectionN
       //Important iterator step
       ++s32_ItDatapool;
    }
+   //DataLogger LogJob Index
+   orc_Ini.WriteInteger(orc_SectionName.toStdString().c_str(),
+                        c_NodeIdSelectedDataLoggerLogJobIndex.toStdString().c_str(),
+                        static_cast<int32_t>(orc_Node.GetSelectedDataLoggerLogJobIndex()));
+   //DataLogger Overview widget selected
+   orc_Ini.WriteBool(orc_SectionName.toStdString().c_str(),
+                     c_DataLoggerOverviewWidgetSelected.toStdString().c_str(),
+                     orc_Node.GetIsOverviewWidgetSelected());
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -980,6 +992,9 @@ void C_UsFiler::mh_SaveProjectIndependentSection(const C_UsHandler & orc_UserSet
    // Application maximizing flag
    orc_Ini.WriteBool("Screen", "Size_maximized", orc_UserSettings.GetAppMaximized());
 
+   // Application screen index
+   orc_Ini.WriteInteger("Screen", "Screen_index", orc_UserSettings.GetAppScreenIndex());
+
    // Sys def topology toolbox position
    orc_Ini.WriteInteger("SdTopologyToolbox", "Position_x", orc_UserSettings.GetSdTopologyToolboxPos().x());
    orc_Ini.WriteInteger("SdTopologyToolbox", "Position_y", orc_UserSettings.GetSdTopologyToolboxPos().y());
@@ -1036,6 +1051,8 @@ void C_UsFiler::mh_SaveProjectDependentSection(const C_UsHandler & orc_UserSetti
       int32_t s32_SysViewSubMode;
       uint32_t u32_SysViewIndex;
       uint32_t u32_SysViewFlag;
+
+      const QStringList c_PemFilePaths = orc_UserSettings.GetLastKnownUpdatePemFilePaths();
 
       // project specific settings
       // Mode
@@ -1177,6 +1194,42 @@ void C_UsFiler::mh_SaveProjectDependentSection(const C_UsHandler & orc_UserSetti
          //Important iterator step
          ++s32_ItView;
       }
+
+      // public PEM File Path
+      orc_Ini.WriteString(orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_public_pem_file_path",
+                          orc_UserSettings.GetLastKnownPublicPemFilePath().toStdString().c_str());
+
+      // Add PEM File Path
+      orc_Ini.WriteString(orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_pem_file_path",
+                          orc_UserSettings.GetLastKnownAddPemFilePath().toStdString().c_str());
+
+      // public secure certificate package path
+      orc_Ini.WriteString(orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_secure_certificate_package_path",
+                          orc_UserSettings.GetLastKnownSecureCertificatePackagePath().toStdString().c_str());
+
+      // PEM file password
+      orc_Ini.WriteString(orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_pem_file_password",
+                          orc_UserSettings.GetLastKnownPemFilePassword().toStdString().c_str());
+
+      // Add PEM file state
+      orc_Ini.WriteBool(
+         orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_Add_pem_file_state",
+         orc_UserSettings.GetLastKnownAddPemFileState());
+
+      // secure update config state
+      orc_Ini.WriteBool(
+         orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_secure_update_config_state",
+         orc_UserSettings.GetLastKnownSecureUpdateConfigState());
+
+      // Values from Update widget
+      orc_Ini.WriteInteger("Update", "PemFileCount", c_PemFilePaths.size());
+      for (int32_t s32_SectionCounter = 0; s32_SectionCounter < static_cast<int32_t>(c_PemFilePaths.size());
+           ++s32_SectionCounter)
+      {
+         const std::string c_PemFilePath = c_PemFilePaths[s32_SectionCounter].toStdString();
+         orc_Ini.WriteString("Update", "PemFiles_" + std::to_string(s32_SectionCounter),
+                             c_PemFilePath);
+      }
    }
 }
 
@@ -1230,6 +1283,10 @@ void C_UsFiler::mh_LoadNode(C_SclIniFile & orc_Ini, const QString & orc_SectionN
    const QString c_NodeIdSelectedDatapoolName = static_cast<QString>("%1Selected_datapool_name").arg(orc_NodeIdBase);
    const QString c_NodeIdSelectedProtocol = static_cast<QString>("%1Selected_protocol").arg(orc_NodeIdBase);
    const QString c_NodeIdSelectedInterface = static_cast<QString>("%1Selected_interface").arg(orc_NodeIdBase);
+   const QString c_NodeIdSelectedDataLoggerLogJobIndex = static_cast<QString>("%1Selected_DataLogger_LogJobindex").arg(
+      orc_NodeIdBase);
+   const QString c_DataLoggerOverviewWidgetSelected = static_cast<QString>("%1Selected_DataLogger_LogJob_Overview").arg(
+      orc_NodeIdBase);
 
    //Selected datapool name
    c_Tmp = orc_Ini.ReadString(orc_SectionName.toStdString().c_str(),
@@ -1250,7 +1307,6 @@ void C_UsFiler::mh_LoadNode(C_SclIniFile & orc_Ini, const QString & orc_SectionN
    c_Tmp = orc_Ini.ReadString(orc_SectionName.toStdString().c_str(),
                               c_NodeIdSelectedHalcChannel.toStdString().c_str(), "").c_str();
    orc_UserSettings.SetProjSdNodeSelectedHalcChannel(orc_NodeName, c_Tmp);
-
    //CANopen columns
    c_Columns.clear();
    C_UsFiler::mh_LoadColumns(orc_Ini, orc_SectionName, c_CanOpenOvColumnId, c_Columns);
@@ -1350,6 +1406,15 @@ void C_UsFiler::mh_LoadNode(C_SclIniFile & orc_Ini, const QString & orc_SectionN
       const QString c_DatapoolIdBase = static_cast<QString>("%1Datapool%2").arg(orc_NodeIdBase).arg(s32_ItDatapool);
       mh_LoadDatapool(orc_Ini, orc_SectionName, c_DatapoolIdBase, orc_NodeName, orc_UserSettings);
    }
+   //DataLogger LogJob Index
+   u32_Tmp = orc_Ini.ReadInteger(orc_SectionName.toStdString().c_str(),
+                                 c_NodeIdSelectedDataLoggerLogJobIndex.toStdString().c_str(), 0);
+   orc_UserSettings.SetProjSdNodeSelectedDataLoggerLogJobIndex(orc_NodeName, u32_Tmp);
+   //DataLogger Overview widget selected
+   const bool q_IsOverviewWidgetSelected = orc_Ini.ReadBool(orc_SectionName.toStdString().c_str(),
+                                                            c_DataLoggerOverviewWidgetSelected.toStdString().c_str(),
+                                                            false);
+   orc_UserSettings.SetProjSdNodeIsOverviewWidgetSelected(orc_NodeName, q_IsOverviewWidgetSelected);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -2091,6 +2156,10 @@ void C_UsFiler::mh_LoadProjectIndependentSection(C_UsHandler & orc_UserSettings,
    q_Flag = orc_Ini.ReadBool("Screen", "Size_maximized", true);
    orc_UserSettings.SetAppMaximized(q_Flag);
 
+   // Application screen index
+   s32_Value = orc_Ini.ReadInteger("Screen", "Screen_index", 0);
+   orc_UserSettings.SetAppScreenIndex(static_cast<uint32_t>(s32_Value));
+
    // Sys def topology toolbox position
    c_Pos.setX(orc_Ini.ReadInteger("SdTopologyToolbox", "Position_x", -1));
    c_Pos.setY(orc_Ini.ReadInteger("SdTopologyToolbox", "Position_y", -1));
@@ -2157,6 +2226,7 @@ void C_UsFiler::mh_LoadProjectDependentSection(C_UsHandler & orc_UserSettings, C
       int32_t s32_SysViewSubMode;
       uint32_t u32_SysViewIndex;
       uint32_t u32_SysViewFlag;
+      QStringList c_PemFilePaths;
 
       // Mode
       s32_Value = orc_Ini.ReadInteger(orc_ActiveProject.toStdString().c_str(), "ProjMode", 0);
@@ -2263,6 +2333,36 @@ void C_UsFiler::mh_LoadProjectDependentSection(C_UsHandler & orc_UserSettings, C
                                                     orc_ActiveProject.toStdString().c_str(),
                                                     "ProjSd_last_known_csv_export_path", "").c_str());
 
+      // public PEM file path
+      orc_UserSettings.SetLastKnownPublicPemFilePath(orc_Ini.ReadString(
+                                                        orc_ActiveProject.toStdString().c_str(),
+                                                        "ProjSd_last_known_public_pem_file_path", "").c_str());
+
+      // Add PEM file path
+      orc_UserSettings.SetLastKnownAddPemFilePath(orc_Ini.ReadString(
+                                                     orc_ActiveProject.toStdString().c_str(),
+                                                     "ProjSd_last_known_pem_file_path", "").c_str());
+
+      // secure certificate package path
+      orc_UserSettings.SetLastKnownSecureCertificatePackagePath(orc_Ini.ReadString(
+                                                                   orc_ActiveProject.toStdString().c_str(),
+                                                                   "ProjSd_last_known_secure_certificate_package_path",
+                                                                   "").c_str());
+
+      // PEM file password
+      orc_UserSettings.SetLastKnownPemFilePassword(orc_Ini.ReadString(
+                                                      orc_ActiveProject.toStdString().c_str(),
+                                                      "ProjSd_last_known_pem_file_password", "").c_str());
+
+      // Add PEM file state
+      orc_UserSettings.SetLastKnownAddPemFileState(
+         orc_Ini.ReadBool(orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_Add_pem_file_state", false));
+
+      // secure update config state
+      orc_UserSettings.SetLastKnownSecureUpdateConfigState(
+         orc_Ini.ReadBool(
+            orc_ActiveProject.toStdString().c_str(), "ProjSd_last_known_secure_update_config_state", false));
+
       // Last tab index in system definition
       s32_Value = orc_Ini.ReadInteger(orc_ActiveProject.toStdString().c_str(), "ProjSdNodeEditTabIndex_value", 0);
       orc_UserSettings.SetProjLastSysDefNodeTabIndex(s32_Value);
@@ -2313,6 +2413,15 @@ void C_UsFiler::mh_LoadProjectDependentSection(C_UsHandler & orc_UserSettings, C
             mh_LoadView(orc_Ini, orc_ActiveProject, c_ViewIdBase, c_ViewName, orc_UserSettings);
          }
       }
+
+      // Values from Update widget
+      s32_Value = orc_Ini.ReadInteger("Update", "PemFileCount", 0);
+      for (int32_t s32_SectionCounter = 0; s32_SectionCounter < s32_Value; ++s32_SectionCounter)
+      {
+         c_PemFilePaths.append(
+            orc_Ini.ReadString("Update", "PemFiles_" + C_SclString::IntToStr(s32_SectionCounter), "").c_str());
+      }
+      orc_UserSettings.SetLastKnownUpdatePemFilePaths(c_PemFilePaths);
    }
    else
    {

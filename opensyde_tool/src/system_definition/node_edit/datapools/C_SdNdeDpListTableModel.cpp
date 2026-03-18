@@ -504,10 +504,24 @@ QVariant C_SdNdeDpListTableModel::data(const QModelIndex & orc_Index, const int3
 
                break;
             case eFACTOR:
-               c_Retval = rc_Data.c_Factor;
+               if (os32_Role == static_cast<int32_t>(Qt::EditRole))
+               {
+                  c_Retval = rc_Data.c_FactorEdit;
+               }
+               else
+               {
+                  c_Retval = rc_Data.c_Factor;
+               }
                break;
             case eOFFSET:
-               c_Retval = rc_Data.c_Offset;
+               if (os32_Role == static_cast<int32_t>(Qt::EditRole))
+               {
+                  c_Retval = rc_Data.c_OffsetEdit;
+               }
+               else
+               {
+                  c_Retval = rc_Data.c_Offset;
+               }
                break;
             case eUNIT:
                c_Retval = rc_Data.c_Unit;
@@ -1867,7 +1881,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
        (this->mu32_ListIndex < pc_Datapool->c_Lists.size()))
    {
       C_DpListTableData & rc_Data = this->mc_DpListInfoAll[ou32_ElementIndex];
-      const bool q_HasLink = this->m_CheckLink(pc_UiElement, pc_OscElement);
+      const bool q_HasLink = this->m_CheckLink(pc_OscElement);
       uint32_t u32_SizeByte;
       uint32_t u32_DataSetCounter;
       bool q_NameConflict = false;
@@ -1907,7 +1921,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
                                                rc_Data.c_Comment, 0, 0);
 
       // Value Type
-      if (pc_UiElement->q_InterpretAsString == true)
+      if (pc_OscElement->q_InterpretAsString == true)
       {
          rc_Data.c_ValueType = C_GtGetText::h_GetText("string");
       }
@@ -1934,7 +1948,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
                                                rc_Data.c_ArraySizeEdit, 0, 0);
 
       // Min and max
-      if (pc_UiElement->q_InterpretAsString == true)
+      if (pc_OscElement->q_InterpretAsString == true)
       {
          // No Edit role in this case
          rc_Data.c_Min = C_SdNdeDpContentUtil::h_ConvertToString(pc_OscElement->c_MinValue);
@@ -2005,7 +2019,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
       // Font for min and max
       rc_Data.c_MinMaxFont = mc_STYLE_GUIDE_FONT_REGULAR_12;
       if ((pc_UiElement->q_AutoMinMaxActive == false) &&
-          ((pc_UiElement->q_InterpretAsString == false) && (pc_OscElement->GetArray() == true)))
+          ((pc_OscElement->q_InterpretAsString == false) && (pc_OscElement->GetArray() == true)))
       {
          //Special link handling
          rc_Data.c_MinMaxFont.setUnderline(true);
@@ -2034,13 +2048,11 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
       }
 
       // Various simple elements
-      C_SdNdeDpUtil::h_ConvertToElementGeneric(*pc_OscElement, *pc_UiElement,
-                                               C_SdNdeDpUtil::E_ElementDataChangeType::eELEMENT_FACTOR,
-                                               rc_Data.c_Factor, 0, 0);
+      rc_Data.c_Factor = m_GetFloatAsString(pc_OscElement->f64_Factor);
+      rc_Data.c_FactorEdit = pc_OscElement->f64_Factor;
 
-      C_SdNdeDpUtil::h_ConvertToElementGeneric(*pc_OscElement, *pc_UiElement,
-                                               C_SdNdeDpUtil::E_ElementDataChangeType::eELEMENT_OFFSET,
-                                               rc_Data.c_Offset, 0, 0);
+      rc_Data.c_Offset = m_GetFloatAsString(pc_OscElement->f64_Offset);
+      rc_Data.c_OffsetEdit = pc_OscElement->f64_Offset;
 
       C_SdNdeDpUtil::h_ConvertToElementGeneric(*pc_OscElement, *pc_UiElement,
                                                C_SdNdeDpUtil::E_ElementDataChangeType::eELEMENT_UNIT,
@@ -2058,7 +2070,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
          bool q_ValueBelowMin = false;
          bool q_ValueOverMax = false;
 
-         if (pc_UiElement->q_InterpretAsString == true)
+         if (pc_OscElement->q_InterpretAsString == true)
          {
             QString c_Result =
                C_SdNdeDpContentUtil::h_ConvertToString(pc_OscElement->c_DataSetValues[u32_DataSetCounter]);
@@ -2274,7 +2286,7 @@ void C_SdNdeDpListTableModel::m_FillDpListElementInfo(const uint32_t ou32_Elemen
       }
 
       // String flag
-      rc_Data.q_InterpretAsString = pc_UiElement->q_InterpretAsString;
+      rc_Data.q_InterpretAsString = pc_OscElement->q_InterpretAsString;
    }
 }
 
@@ -2311,22 +2323,20 @@ void C_SdNdeDpListTableModel::m_DataChange(const uint32_t & oru32_NodeIndex, con
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief   Check if item needs link
 
-   \param[in]  opc_UiElement    UI Element to check for link
-   \param[in]  opc_OscElement   OSC Element to check for link
+   \param[in]  opc_OscElement    OSC Element to check for link
 
    \return
    True  Link
    False Else
 */
 //----------------------------------------------------------------------------------------------------------------------
-bool C_SdNdeDpListTableModel::m_CheckLink(const C_PuiSdNodeDataPoolListElement * const opc_UiElement,
-                                          const C_OscNodeDataPoolListElement * const opc_OscElement) const
+bool C_SdNdeDpListTableModel::m_CheckLink(const C_OscNodeDataPoolListElement * const opc_OscElement) const
 {
    bool q_Retval = false;
 
-   if ((opc_UiElement != NULL) && (opc_OscElement != NULL))
+   if (opc_OscElement != NULL)
    {
-      if ((opc_UiElement->q_InterpretAsString == false) && (opc_OscElement->GetArray() == true))
+      if ((opc_OscElement->q_InterpretAsString == false) && (opc_OscElement->GetArray() == true))
       {
          //Special link handling
          q_Retval = true;
@@ -2397,4 +2407,22 @@ void C_SdNdeDpListTableModel::m_MoveItem(const uint32_t ou32_SourceIndex, const 
 {
    C_PuiSdHandler::h_GetInstance()->MoveDataPoolListElement(this->mu32_NodeIndex, this->mu32_DataPoolIndex,
                                                             this->mu32_ListIndex, ou32_SourceIndex, ou32_TargetIndex);
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get float as string
+
+   \param[in]  of64_Value  Value
+
+   \return
+   Float as string
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QString C_SdNdeDpListTableModel::m_GetFloatAsString(const float64_t of64_Value)
+{
+   QString c_Precison = QString::number(of64_Value, 'g', 17);
+
+   c_Precison.replace(QLocale::c().decimalPoint(), QLocale::system().decimalPoint(),
+                      Qt::CaseInsensitive);
+   return c_Precison;
 }

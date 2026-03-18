@@ -11,7 +11,6 @@
 
 /* -- Includes ------------------------------------------------------------------------------------------------------ */
 #include "precomp_headers.hpp"
-#include <QWinTaskbarButton>
 
 #include "stwerrors.hpp"
 #include "C_OscLoggingHandler.hpp"
@@ -21,7 +20,6 @@
 #include "C_GtGetText.hpp"
 #include "C_OgeWiCustomMessage.hpp"
 #include "C_FlaConNodeConfigPopup.hpp"
-#include "C_FlaSenDcBasicSequences.hpp"
 #include "C_FlaSenSearchNodePopup.hpp"
 #include "C_Uti.hpp"
 #include "C_FlaUpListItemWidget.hpp"
@@ -61,12 +59,15 @@ C_FlaMainWindow::C_FlaMainWindow(QWidget * const opc_Parent) :
    QMainWindow(opc_Parent),
    mpc_Ui(new Ui::C_FlaMainWindow),
    mpc_UpSequences(NULL),
+   mpc_CanDispatcher(NULL),
    ms32_NextHexFile(0),
    mq_ContinueUpdate(false),
    mu32_FlashedFilesCounter(0),
    mu64_FlashedBytes(0),
-   mu32_FlashedBytesTmp(0),
-   mq_NewFile(true)
+   mu64_FlashedBytesTmp(0),
+   mq_NewFile(true),
+   mu64_TotalHexFileSizeInBytes(0),
+   mu64_AllHexFilesSizeInBytes(0)
 {
    const uint16_t u16_COUTER_TIMEOUT_IN_MILLIS = 1000;
 
@@ -121,26 +122,11 @@ C_FlaMainWindow::C_FlaMainWindow(QWidget * const opc_Parent) :
 C_FlaMainWindow::~C_FlaMainWindow()
 {
    delete this->mpc_Ui;
-   delete this->mpc_Progress;
    delete this->mpc_UpSequences;
    this->mpc_UpSequences = NULL;
-}
 
-//----------------------------------------------------------------------------------------------------------------------
-/*! \brief  Overwritten show event slot
-
-   Init progress in Windows taskbar
-
-   \param[in,out]  opc_Event  Event identification and information
-*/
-//----------------------------------------------------------------------------------------------------------------------
-void C_FlaMainWindow::showEvent(QShowEvent * const opc_Event)
-{
-   //handle task bar button
-   m_InitWinTaskbar();
-
-   opc_Event->accept();
-   QMainWindow::showEvent(opc_Event);
+   delete this->mpc_CanDispatcher;
+   this->mpc_CanDispatcher = NULL;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -193,11 +179,19 @@ void C_FlaMainWindow::m_LoadUserSettings(void)
    QPoint c_Position = C_UsHandler::h_GetInstance()->GetScreenPos();
    QSize c_Size = C_UsHandler::h_GetInstance()->GetAppSize();
 
-   C_OgeWiUtil::h_CheckAndFixDialogPositionAndSize(c_Position, c_Size, QSize(1000, 700));
+   C_OgeWiUtil::h_CheckAndFixDialogPositionAndSize(c_Position, c_Size,
+                                                   C_UsHandler::h_GetInstance()->GetAppScreenIndex(), QSize(1000, 700));
    this->setGeometry(c_Position.x(), c_Position.y(), c_Size.width(), c_Size.height());
 
    if (C_UsHandler::h_GetInstance()->GetAppMaximized() == true)
    {
+      // move to correct screen on multi screen setups
+      const uint32_t u32_ScreenIndex = C_UsHandler::h_GetInstance()->GetAppScreenIndex();
+      const QScreen * const pc_Screen =
+         (static_cast<int32_t>(u32_ScreenIndex) < QGuiApplication::screens().size()) ?
+         QGuiApplication::screens().at(u32_ScreenIndex) : QGuiApplication::primaryScreen();
+
+      this->move(pc_Screen->geometry().topLeft());
       this->showMaximized();
    }
 
@@ -224,6 +218,7 @@ void C_FlaMainWindow::m_SaveUserSettings(void)
    C_UsHandler::h_GetInstance()->SetScreenPos(this->normalGeometry().topLeft());
    C_UsHandler::h_GetInstance()->SetAppSize(this->normalGeometry().size());
    C_UsHandler::h_GetInstance()->SetAppMaximized(this->isMaximized());
+   C_UsHandler::h_GetInstance()->SetAppScreenIndex(QGuiApplication::screens().indexOf(this->screen()));
 
    // splitter
    // update to actual value if settings are not collapsed
@@ -383,6 +378,8 @@ void C_FlaMainWindow::m_OnUpdateNode()
    {
       if (this->m_InitUpdateSequence() == C_NO_ERR)
       {
+         const QStringList & rc_HexFiles = this->mpc_Ui->pc_UpdateWidget->GetHexFilePaths();
+         this->mu64_AllHexFilesSizeInBytes = this->mpc_UpSequences->GetTotalHexFilesSize(rc_HexFiles);
          QApplication::setOverrideCursor(Qt::WaitCursor);
          orc_Text = "Entering update mode ...";
 
@@ -556,44 +553,25 @@ void C_FlaMainWindow::m_SetProgressBarColor(const bool & orq_Success) const
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Calcualte how many bytes of a specific file have been flashed
 
-   \param[in]       s32_FlashableBytesPerFile     Amount of flashable bytes
    \param[in]       oru8_ProgressInPercentage     Progress in percentage
 
    \return
-   uint32_t
+   uint64_t
 */
 //----------------------------------------------------------------------------------------------------------------------
-uint32_t stw::opensyde_gui::C_FlaMainWindow::m_CalculateFileBytesFlashed(const uint8_t & oru8_ProgressInPercentage)
+uint64_t stw::opensyde_gui::C_FlaMainWindow::m_CalculateFileBytesFlashed(const uint8_t & oru8_ProgressInPercentage)
+const
 {
    const uint8_t u8_MAX_PERCENTAGE = 100;
 
-   const uint32_t u32_FlashableBytesPerFile = this->mpc_Ui->pc_UpdateWidget->GetHexFileSize(mu32_FlashedFilesCounter);
-   const float32_t f32_PercentageDecimal = static_cast<float32_t>(oru8_ProgressInPercentage) /
-                                           static_cast<float32_t>(u8_MAX_PERCENTAGE);
-   const float32_t f32_FlashedBytes = f32_PercentageDecimal * static_cast<float32_t>(u32_FlashableBytesPerFile);
-   const uint32_t u32_FlashedBytes = static_cast<uint32_t>(f32_FlashedBytes);
+   const uint64_t u64_FlashableBytesPerFile = this->mu64_TotalHexFileSizeInBytes;
+   const float64_t f64_PercentageDecimal = static_cast<float64_t>(oru8_ProgressInPercentage) /
+                                           static_cast<float64_t>(u8_MAX_PERCENTAGE);
+   const float64_t f64_FlashedBytes = f64_PercentageDecimal * static_cast<float64_t>(u64_FlashableBytesPerFile);
+   const uint64_t u64_FlashedBytes = static_cast<uint64_t>(f64_FlashedBytes);
 
-   return u32_FlashedBytes;
+   return u64_FlashedBytes;
 }
-
-//----------------------------------------------------------------------------------------------------------------------
-/*! \brief  Init windows taskbar progress bar
-*/
-//----------------------------------------------------------------------------------------------------------------------
-void C_FlaMainWindow::m_InitWinTaskbar(void)
-{
-   const uint8_t u8_MINIMUM_PERCENTAGE = 0;
-   const uint8_t u8_MAXIMUM_PERCENTAGE = 100;
-
-   QWidget * const pc_Top = C_OgeWiUtil::h_GetWidgetUnderNextPopUp(this);
-   QWinTaskbarButton * const pc_Button = new QWinTaskbarButton(pc_Top);
-
-   pc_Button->setWindow(pc_Top->windowHandle());
-
-   this->mpc_Progress = pc_Button->progress();
-   this->mpc_Progress->setMinimum(u8_MINIMUM_PERCENTAGE);
-   this->mpc_Progress->setMaximum(u8_MAXIMUM_PERCENTAGE);
-} //lint !e429  //no memory leak because of the parent of pc_Button and the Qt memory management
 
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Error has been detected
@@ -645,44 +623,46 @@ bool C_FlaMainWindow::m_ErrorDetected(const bool & orq_ShowErrorMessage)
 
    Update progress bar and the data transfer
 
-   \param[in]       oru8_ProgressInPercentage     Progress in percentage
+   \param[in]       oru8_ProgressInPercentage                   Progress in percentage
+   \param[in]       oru8_CurrentFileProgressInPercentage        current file Progress in percentage
 */
 //----------------------------------------------------------------------------------------------------------------------
-void C_FlaMainWindow::m_UpdateBottomBar(const uint8_t & oru8_ProgressInPercentage)
+void C_FlaMainWindow::m_UpdateBottomBar(const uint8_t & oru8_ProgressInPercentage,
+                                        const uint8_t & oru8_CurrentFileProgressInPercentage)
 {
    const uint8_t u8_MAX_PERCENTAGE = 100;
-   const bool q_VISIBLE_WIN_PROGRESS = true;
+   const uint8_t u8_STATE_PROGRESS = static_cast<uint8_t>(C_FlaUpListItemWidget::hu32_STATE_IN_PROGRESS);
 
-   if ((oru8_ProgressInPercentage == 0) && mq_NewFile)
+   if (mq_NewFile)
    {
-      const uint8_t u8_STATE_PROGRESS = static_cast<uint8_t>(C_FlaUpListItemWidget::hu32_STATE_IN_PROGRESS);
+      m_UpdateFileIcon(mu32_FlashedFilesCounter, u8_STATE_PROGRESS);
+      mq_NewFile = false;
       const QString orc_Text = "Updating Node ...";
       m_SetHeadingText(orc_Text, u8_STATE_PROGRESS);
-      m_UpdateFileIcon(mu32_FlashedFilesCounter, u8_STATE_PROGRESS);
-
-      mu32_FlashedBytesTmp = 0;
-      mq_NewFile = false;
+   }
+   if ((oru8_ProgressInPercentage == 0) && mq_NewFile)
+   {
+      mu64_FlashedBytesTmp = 0;
    }
 
-   const uint32_t u32_CalculateFileBytesFlashed = m_CalculateFileBytesFlashed(oru8_ProgressInPercentage);
-   if ((u32_CalculateFileBytesFlashed > 0) && (u32_CalculateFileBytesFlashed > mu32_FlashedBytesTmp))
+   const uint64_t u64_CalculateFileBytesFlashed = m_CalculateFileBytesFlashed(oru8_ProgressInPercentage);
+   if ((u64_CalculateFileBytesFlashed > 0) && (u64_CalculateFileBytesFlashed > mu64_FlashedBytesTmp))
    {
       uint8_t u8_TotalProgressInPercentage;
 
-      const uint32_t u32_Differences = u32_CalculateFileBytesFlashed - mu32_FlashedBytesTmp;
+      const uint64_t u64_Differences = u64_CalculateFileBytesFlashed - mu64_FlashedBytesTmp;
 
-      mu32_FlashedBytesTmp += u32_Differences;
-      mu64_FlashedBytes += u32_Differences;
+      mu64_FlashedBytesTmp += u64_Differences;
+      mu64_FlashedBytes += u64_Differences;
 
       u8_TotalProgressInPercentage = m_CalcualteTotalProgressInPercentage();
 
       this->mpc_Ui->pc_UpdateWidget->UpdateProgressBar(u8_TotalProgressInPercentage);
-      this->m_UpdateWinProgress(q_VISIBLE_WIN_PROGRESS, u8_TotalProgressInPercentage);
       this->mpc_Ui->pc_UpdateWidget->UpdateDataTransfer(mu64_FlashedBytes);
    }
 
    //Calculate the total file bytes percentage
-   if (oru8_ProgressInPercentage == u8_MAX_PERCENTAGE)
+   if (oru8_CurrentFileProgressInPercentage == u8_MAX_PERCENTAGE)
    {
       const uint8_t u8_STATE_FINISHED = static_cast<uint8_t>(C_FlaUpListItemWidget::hu32_STATE_FINISHED);
       m_UpdateFileIcon(mu32_FlashedFilesCounter, u8_STATE_FINISHED);
@@ -704,19 +684,6 @@ void C_FlaMainWindow::m_UpdateFileIcon(const uint32_t & oru32_FileIndex, const u
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-/*! \brief   Set task bar progress
-
-   \param[in]  orq_Visible  Progress is visible flag
-   \param[in]  oru8_Value  Progress value (0-100)
-*/
-//----------------------------------------------------------------------------------------------------------------------
-void C_FlaMainWindow::m_UpdateWinProgress(const bool & orq_Visible, const uint8_t & oru8_Value)
-{
-   this->mpc_Progress->setVisible(orq_Visible);
-   this->mpc_Progress->setValue(oru8_Value);
-}
-
-//----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Calcualte total progress in percentage
 
    \return
@@ -728,9 +695,9 @@ uint8_t C_FlaMainWindow::m_CalcualteTotalProgressInPercentage(void) const
    const uint8_t u8_MINIMUM_PROGRESS_PERCENTAGE = 2; // defined in C_OscBuSequences
 
    const uint8_t u8_MAX_PERCENTAGE = 100;
-   const uint32_t u32_TotalNumberOfFlashableSize = this->mpc_Ui->pc_UpdateWidget->GetHexFileSize();
+   const uint64_t u64_TotalNumberOfFlashableSize = this->mu64_TotalHexFileSizeInBytes;
    uint8_t u8_ProgressInPercentage =
-      static_cast<uint8_t>((u8_MAX_PERCENTAGE * mu64_FlashedBytes) / u32_TotalNumberOfFlashableSize);
+      static_cast<uint8_t>((u8_MAX_PERCENTAGE * mu64_FlashedBytes) / u64_TotalNumberOfFlashableSize);
 
    if (u8_ProgressInPercentage < (u8_MAX_PERCENTAGE - u8_MINIMUM_PROGRESS_PERCENTAGE))
    {
@@ -745,7 +712,6 @@ uint8_t C_FlaMainWindow::m_CalcualteTotalProgressInPercentage(void) const
 //----------------------------------------------------------------------------------------------------------------------
 void C_FlaMainWindow::m_ResetProgressBar()
 {
-   const bool q_VISIBLE_PROGRESSBAR = false;
    const uint8_t u8_PROGRESSBAR_VALUE = 0;
    const uint8_t u8_FLAHSED_FILES_COUNTER = 0;
 
@@ -753,9 +719,6 @@ void C_FlaMainWindow::m_ResetProgressBar()
    this->mpc_Ui->pc_UpdateWidget->ResetSummary();
    this->mpc_Ui->pc_UpdateWidget->UpdateProgressBar(u8_PROGRESSBAR_VALUE);
    this->mpc_Ui->pc_UpdateWidget->UpdateDataTransfer(u8_PROGRESSBAR_VALUE);
-
-   /*Reset taskbar progress*/
-   m_UpdateWinProgress(q_VISIBLE_PROGRESSBAR, u8_PROGRESSBAR_VALUE);
 
    /*Reset local variables*/
    this->mc_SecTimer.stop();
@@ -782,7 +745,37 @@ void C_FlaMainWindow::m_ResetFileIcons() const
 //----------------------------------------------------------------------------------------------------------------------
 int32_t C_FlaMainWindow::m_InitUpdateSequence(void)
 {
-   int32_t s32_Return;
+   int32_t s32_Return = C_NO_ERR;
+
+   if (this->mpc_CanDispatcher == NULL)
+   {
+      const std::string c_DllPath = this->mpc_Ui->pc_SettingsWidget->GetCanDllPath().toStdString();
+      this->mpc_CanDispatcher = new stw::can::C_Can();
+
+      osc_write_log_info("Initialization", "CAN DLL path used: " + c_DllPath);
+
+      this->mpc_CanDispatcher->SetDLLName(c_DllPath);
+      s32_Return = this->mpc_CanDispatcher->DLL_Open();
+      if (s32_Return == C_NO_ERR)
+      {
+         osc_write_log_info("Initialization", "CAN DLL loaded.");
+         s32_Return = this->mpc_CanDispatcher->CAN_Init(this->mpc_Ui->pc_GeneralPropertiesWidget->GetBitrate());
+         if (s32_Return == C_NO_ERR)
+         {
+            osc_write_log_info("Initialization", "CAN interface initialized.");
+         }
+         else
+         {
+            osc_write_log_error("Initialization", "Could not initialize the CAN interface!");
+         }
+      }
+      else
+      {
+         const std::string c_Bitness = QString::number(8 * sizeof(size_t)).toStdString();
+         osc_write_log_error("Initialization",
+                             "Could not load the CAN DLL! Make sure to use a " + c_Bitness + "-bit DLL.");
+      }
+   }
 
    if (this->mpc_UpSequences == NULL)
    {
@@ -794,6 +787,8 @@ int32_t C_FlaMainWindow::m_InitUpdateSequence(void)
       connect(mpc_UpSequences, &C_FlaUpSequences::SigReportFlashloaderInformationText,
               this, &C_FlaMainWindow::m_ShowProgress);
       connect(mpc_UpSequences, &C_FlaUpSequences::SigReportDeviceName, this, &C_FlaMainWindow::m_CheckDeviceName);
+      connect(mpc_UpSequences, &C_FlaUpSequences::SigTotalHexFileSizeInBytes, this,
+              &C_FlaMainWindow::m_SetTotalHexFileSizeInBytes);
    }
 
    // disable UI
@@ -802,16 +797,22 @@ int32_t C_FlaMainWindow::m_InitUpdateSequence(void)
    this->mpc_Ui->pc_UpdateWidget->EnableSettings(false);
    this->mpc_Ui->pc_SettingsWidget->EnableSettings(false);
 
-   // initialize sequence
-   s32_Return = this->mpc_UpSequences->Init(this->mpc_Ui->pc_SettingsWidget->GetCanDllPath().toStdString(),
-                                            this->mpc_Ui->pc_GeneralPropertiesWidget->GetBitrate(),
-                                            this->mpc_Ui->pc_GeneralPropertiesWidget->GetNodeId());
+   if (s32_Return == C_NO_ERR)
+   {
+      // initialize sequence
+      s32_Return = this->mpc_UpSequences->Init(this->mpc_CanDispatcher,
+                                               this->mpc_Ui->pc_GeneralPropertiesWidget->GetBitrate(),
+                                               this->mpc_Ui->pc_GeneralPropertiesWidget->GetNodeId());
+   }
 
    if (s32_Return != C_NO_ERR)
    {
+      const uint32_t u32_BITNESS = 8 * sizeof(size_t);
       C_OgeWiCustomMessage c_Message(this->mpc_Ui->pc_TitleBarWidget, C_OgeWiCustomMessage::eERROR);
       c_Message.SetHeading(C_GtGetText::h_GetText("Initialization failed"));
-      c_Message.SetDescription(C_GtGetText::h_GetText("Failed to initialize CAN interface."));
+      c_Message.SetDescription(
+         static_cast<QString>(C_GtGetText::h_GetText("Failed to initialize CAN interface. "
+                                                     "Make sure to use a %1-bit DLL.")).arg(u32_BITNESS));
       c_Message.SetDetails(static_cast<QString>(C_GtGetText::h_GetText("For details see ")) +
                            C_Uti::h_GetLink(C_GtGetText::h_GetText("log file"), mc_STYLESHEET_GUIDE_COLOR_LINK,
                                             C_OscLoggingHandler::h_GetCompleteLogFileLocation().c_str()) + ".");
@@ -847,6 +848,21 @@ void C_FlaMainWindow::m_CleanupUpdateSequence(void)
 
    delete this->mpc_UpSequences;
    this->mpc_UpSequences = NULL;
+
+   if (this->mpc_CanDispatcher != NULL)
+   {
+      if (this->mpc_CanDispatcher->DLL_Close() == C_NO_ERR)
+      {
+         osc_write_log_info("Teardown", "CAN DLL closed.");
+      }
+      else
+      {
+         osc_write_log_info("Teardown", "Failed to close CAN DLL.");
+      }
+
+      delete this->mpc_CanDispatcher;
+      this->mpc_CanDispatcher = NULL;
+   }
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -971,11 +987,7 @@ void C_FlaMainWindow::m_TimerUpdate(void)
       {
          mu32_FlashedFilesCounter = 0;
          mu64_FlashedBytes = 0;
-         mu32_FlashedBytesTmp = 0;
-         const uint8_t u8_WIN_PROGRESS_PERCENTAGE = 0;
-         const bool q_VISIBLE_WIN_PROGRESS = false;
-
-         this->m_UpdateWinProgress(q_VISIBLE_WIN_PROGRESS, u8_WIN_PROGRESS_PERCENTAGE);
+         mu64_FlashedBytesTmp = 0;
 
          this->me_UpdateStep = C_FlaUpSequences::eRESETSYSTEM;
          this->ms32_NextHexFile = 0; // reset
@@ -1117,4 +1129,16 @@ bool stw::opensyde_gui::C_FlaMainWindow::m_ShowErrorMessage(void)
    }
 
    return q_CallReset;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set total number of Hex File size in bytes
+
+   \param[in]       ou64_TotalHexFileSizeInBytes     Amount of hex file size in bytes
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_FlaMainWindow::m_SetTotalHexFileSizeInBytes(const uint64_t ou64_TotalHexFileSizeInBytes)
+{
+   this->mu64_TotalHexFileSizeInBytes = ou64_TotalHexFileSizeInBytes;
+   this->mpc_Ui->pc_UpdateWidget->SetTotalHexFileSizeInBytes(this->mu64_TotalHexFileSizeInBytes);
 }

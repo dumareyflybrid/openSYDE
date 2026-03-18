@@ -12,10 +12,10 @@
 /* -- Includes ------------------------------------------------------------------------------------------------------ */
 #include "precomp_headers.hpp"
 
-#include "C_Uti.hpp"
 #include "stwtypes.hpp"
 #include "TglUtils.hpp"
 #include "stwerrors.hpp"
+#include "C_OscUtils.hpp"
 #include "C_GtGetText.hpp"
 #include "C_PuiSdUtil.hpp"
 #include "C_PuiSdHandler.hpp"
@@ -24,7 +24,6 @@
 using namespace stw::scl;
 using namespace stw::tgl;
 using namespace stw::errors;
-using namespace stw::opensyde_gui;
 using namespace stw::opensyde_core;
 using namespace stw::opensyde_gui_logic;
 
@@ -455,6 +454,59 @@ int32_t C_PuiSdHandlerNodeLogic::SetNodeCodeExportSettings(const uint32_t ou32_I
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set node property X-App support and handle dependencies
+
+   \param[in]  ou32_NodeIndex    Node index
+   \param[in]  oq_XappSupport    New property X-App support
+
+   \return
+   C_NO_ERR Operation success
+   C_RANGE  Operation failure: parameter invalid
+*/
+//----------------------------------------------------------------------------------------------------------------------
+int32_t C_PuiSdHandlerNodeLogic::SetOscNodePropertyXappSupport(const uint32_t ou32_NodeIndex, const bool oq_XappSupport)
+{
+   int32_t s32_Retval = C_NO_ERR;
+
+   if (ou32_NodeIndex < this->mc_CoreDefinition.c_Nodes.size())
+   {
+      C_OscNode & rc_Node = this->mc_CoreDefinition.c_Nodes[ou32_NodeIndex];
+      rc_Node.c_Properties.q_XappSupport = oq_XappSupport;
+
+      //Delete existing programmable Data Blocks
+      uint32_t u32_NonProgrammableCounter = 0;
+      while (rc_Node.c_Applications.size() > u32_NonProgrammableCounter)
+      {
+         if (rc_Node.c_Applications[u32_NonProgrammableCounter].e_Type !=
+             C_OscNodeApplication::ePROGRAMMABLE_APPLICATION)
+         {
+            u32_NonProgrammableCounter++;
+         }
+         else
+         {
+            // as the vector gets smaller, we just remove the first element that is not programmable, till it'sempty
+            tgl_assert(this->RemoveApplication(ou32_NodeIndex, u32_NonProgrammableCounter) == C_NO_ERR);
+         }
+      }
+
+      //Disable the one existing log job (in future: delete all log jobs)
+      if (rc_Node.c_Properties.q_XappSupport == false)
+      {
+         if (rc_Node.c_DataLoggerJobs.size() > 0)
+         {
+            rc_Node.c_DataLoggerJobs[0].q_IsEnabled = false;
+         }
+      }
+   }
+   else
+   {
+      s32_Retval = C_RANGE;
+   }
+
+   return s32_Retval;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 /*! \brief   Apply node properties
 
    \param[in]  ou32_NodeIndex    Node index
@@ -488,8 +540,11 @@ void C_PuiSdHandlerNodeLogic::SetOscNodeProperties(const uint32_t ou32_NodeIndex
 */
 //----------------------------------------------------------------------------------------------------------------------
 void C_PuiSdHandlerNodeLogic::SetOscNodePropertiesDetailed(const uint32_t ou32_NodeIndex, const QString & orc_Name,
-                                                           const QString & orc_Comment,
-                                                           const C_OscNodeProperties::E_DiagnosticServerProtocol oe_DiagnosticServer, const C_OscNodeProperties::E_FlashLoaderProtocol oe_FlashLoader, const std::vector<uint8_t> & orc_NodeIds, const std::vector<bool> & orc_UpdateFlags, const std::vector<bool> & orc_RoutingFlags,
+                                                           const QString & orc_Comment, const C_OscNodeProperties::E_DiagnosticServerProtocol
+                                                           oe_DiagnosticServer, const C_OscNodeProperties::E_FlashLoaderProtocol
+                                                           oe_FlashLoader, const std::vector<uint8_t> & orc_NodeIds,
+                                                           const std::vector<bool> & orc_UpdateFlags,
+                                                           const std::vector<bool> & orc_RoutingFlags,
                                                            const std::vector<bool> & orc_DiagnosisFlags)
 {
    if (ou32_NodeIndex < this->mc_CoreDefinition.c_Nodes.size())
@@ -565,7 +620,7 @@ uint32_t C_PuiSdHandlerNodeLogic::AddNodeAndSort(C_OscNode & orc_OscNode, const 
    const C_SclString c_DefaultDeviceName =
       C_PuiSdHandlerNodeLogic::h_AutomaticCeStringAdaptation(c_DeviceName.c_str()).toStdString().c_str();
 
-   orc_OscNode.c_Properties.c_Name = C_Uti::h_GetUniqueName(
+   orc_OscNode.c_Properties.c_Name = C_OscUtils::h_GetUniqueName(
       this->m_GetExistingNodeNames(), orc_OscNode.c_Properties.c_Name, this->GetNameMaxCharLimit(),
       c_DefaultDeviceName);
 
@@ -633,7 +688,7 @@ uint32_t C_PuiSdHandlerNodeLogic::AddNodeSquadAndSort(std::vector<C_OscNode> & o
 
       // The proposed name would be identical for all sub nodes too. The sub node specific part of the name
       // will be added with SetBaseName
-      c_Name = C_Uti::h_GetUniqueName(
+      c_Name = C_OscUtils::h_GetUniqueName(
          this->m_GetExistingNodeNames(), c_Name, this->GetNameMaxCharLimit(), c_DefaultDeviceName);
    }
 
@@ -711,17 +766,16 @@ void C_PuiSdHandlerNodeLogic::RemoveNode(const uint32_t ou32_NodeIndex)
    false No conflict
 */
 //----------------------------------------------------------------------------------------------------------------------
-bool C_PuiSdHandlerNodeLogic::CheckNodeConflict(const uint32_t & oru32_NodeIndex) const
+bool C_PuiSdHandlerNodeLogic::CheckNodeConflict(const uint32_t & oru32_NodeIndex)
 {
    bool q_Retval;
-   static QMap<uint32_t, bool> hc_PreviousResult;
 
    //Get reference hash
    const uint32_t u32_Hash = this->m_GetHashNode(oru32_NodeIndex);
    //Look up
-   const QMap<uint32_t, bool>::const_iterator c_It = hc_PreviousResult.find(u32_Hash);
+   const QMap<uint32_t, bool>::const_iterator c_It = mc_PreviousNodeErrorCheckResult.find(u32_Hash);
 
-   if (c_It == hc_PreviousResult.end())
+   if (c_It == mc_PreviousNodeErrorCheckResult.end())
    {
       bool q_NameConflict;
       bool q_NameEmpty;
@@ -768,11 +822,11 @@ bool C_PuiSdHandlerNodeLogic::CheckNodeConflict(const uint32_t & oru32_NodeIndex
              (q_CommMaxSignalCountInvalid == true) || (q_CoPdoCountInvalid == true) ||
              (q_CoHeartbeatInvalid == true))
          {
-            hc_PreviousResult.insert(u32_Hash, true);
+            mc_PreviousNodeErrorCheckResult.insert(u32_Hash, true);
          }
          else
          {
-            hc_PreviousResult.insert(u32_Hash, false);
+            mc_PreviousNodeErrorCheckResult.insert(u32_Hash, false);
          }
       }
       else
@@ -1898,8 +1952,8 @@ int32_t C_PuiSdHandlerNodeLogic::GetDataPool(const uint32_t & oru32_NodeIndex, c
 C_SclString C_PuiSdHandlerNodeLogic::GetUniqueDataPoolName(const uint32_t & oru32_NodeIndex,
                                                            const C_SclString & orc_Proposal) const
 {
-   return C_Uti::h_GetUniqueName(this->m_GetExistingNodeDataPoolNames(
-                                    oru32_NodeIndex), orc_Proposal, this->GetNameMaxCharLimit());
+   return C_OscUtils::h_GetUniqueName(this->m_GetExistingNodeDataPoolNames(
+                                         oru32_NodeIndex), orc_Proposal, this->GetNameMaxCharLimit());
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -2663,8 +2717,8 @@ int32_t C_PuiSdHandlerNodeLogic::MoveApplication(const uint32_t ou32_NodeIndex, 
 C_SclString C_PuiSdHandlerNodeLogic::GetUniqueApplicationName(const uint32_t & oru32_NodeIndex,
                                                               const C_SclString & orc_Proposal) const
 {
-   return C_Uti::h_GetUniqueName(this->m_GetExistingNodeApplicationNames(
-                                    oru32_NodeIndex), orc_Proposal, this->GetNameMaxCharLimit());
+   return C_OscUtils::h_GetUniqueName(this->m_GetExistingNodeApplicationNames(
+                                         oru32_NodeIndex), orc_Proposal, this->GetNameMaxCharLimit());
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -2946,9 +3000,9 @@ int32_t C_PuiSdHandlerNodeLogic::InsertDataPoolList(const uint32_t & oru32_NodeI
             //Unique name
             C_OscNodeDataPoolList c_NodeDataPoolList = orc_OscContent;
             c_NodeDataPoolList.c_Name =
-               C_Uti::h_GetUniqueName(this->m_GetExistingNodeDataPoolListNames(oru32_NodeIndex,
-                                                                               oru32_DataPoolIndex),
-                                      c_NodeDataPoolList.c_Name, this->GetNameMaxCharLimit());
+               C_OscUtils::h_GetUniqueName(this->m_GetExistingNodeDataPoolListNames(oru32_NodeIndex,
+                                                                                    oru32_DataPoolIndex),
+                                           c_NodeDataPoolList.c_Name, this->GetNameMaxCharLimit());
             //Adapt required fields
             if (rc_OscDataPool.q_IsSafety == true)
             {
@@ -3785,10 +3839,10 @@ int32_t C_PuiSdHandlerNodeLogic::InsertDataPoolListDataSet(const uint32_t & oru3
                //Unique name
                C_OscNodeDataPoolDataSet c_NodeDataPoolDataSet = orc_OscName;
                c_NodeDataPoolDataSet.c_Name =
-                  C_Uti::h_GetUniqueName(this->m_GetExistingNodeDataPoolListDataSetNames(oru32_NodeIndex,
-                                                                                         oru32_DataPoolIndex,
-                                                                                         oru32_DataPoolListIndex),
-                                         c_NodeDataPoolDataSet.c_Name, this->GetNameMaxCharLimit());
+                  C_OscUtils::h_GetUniqueName(this->m_GetExistingNodeDataPoolListDataSetNames(oru32_NodeIndex,
+                                                                                              oru32_DataPoolIndex,
+                                                                                              oru32_DataPoolListIndex),
+                                              c_NodeDataPoolDataSet.c_Name, this->GetNameMaxCharLimit());
                //Insert
                rc_OscList.c_DataSets.insert(
                   rc_OscList.c_DataSets.begin() + oru32_DataPoolListDataSetIndex, c_NodeDataPoolDataSet);
@@ -4486,10 +4540,10 @@ int32_t C_PuiSdHandlerNodeLogic::InsertDataPoolListElement(const uint32_t & oru3
                //Unique name
                C_OscNodeDataPoolListElement c_NodeDataPoolListElement = orc_OscContent;
                c_NodeDataPoolListElement.c_Name =
-                  C_Uti::h_GetUniqueName(this->m_GetExistingNodeDataPoolListVariableNames(oru32_NodeIndex,
-                                                                                          oru32_DataPoolIndex,
-                                                                                          oru32_DataPoolListIndex),
-                                         c_NodeDataPoolListElement.c_Name, this->GetNameMaxCharLimit());
+                  C_OscUtils::h_GetUniqueName(this->m_GetExistingNodeDataPoolListVariableNames(oru32_NodeIndex,
+                                                                                               oru32_DataPoolIndex,
+                                                                                               oru32_DataPoolListIndex),
+                                              c_NodeDataPoolListElement.c_Name, this->GetNameMaxCharLimit());
                //Adapt required fields
                if (rc_OscDataPool.q_IsSafety == true)
                {
@@ -4723,22 +4777,22 @@ int32_t C_PuiSdHandlerNodeLogic::SetDataPoolListElement(const uint32_t & oru32_N
                     (rc_OscDataElement.GetArraySize() !=
                      c_NewValuesContent.GetArraySize())))
                {
-                  Q_EMIT this->SigSyncNodeDataPoolListElementTypeChanged(oru32_NodeIndex, oru32_DataPoolIndex,
-                                                                         oru32_DataPoolListIndex,
-                                                                         oru32_DataPoolListElementIndex,
-                                                                         c_NewValuesContent.GetType(),
-                                                                         c_NewValuesContent.GetArray(),
-                                                                         c_NewValuesContent.GetArraySize(),
-                                                                         orc_UiContent.q_InterpretAsString);
+                  this->m_HandleSyncNodeDataPoolListElementTypeOrArrayChanged(oru32_NodeIndex, oru32_DataPoolIndex,
+                                                                              oru32_DataPoolListIndex,
+                                                                              oru32_DataPoolListElementIndex,
+                                                                              c_NewValuesContent.GetType(),
+                                                                              c_NewValuesContent.GetArray(),
+                                                                              c_NewValuesContent.GetArraySize(),
+                                                                              rc_OscDataElement.q_InterpretAsString);
                }
                if ((rc_OscDataElement.c_MinValue != orc_OscContent.c_MinValue) ||
                    (rc_OscDataElement.c_MaxValue != orc_OscContent.c_MaxValue))
                {
-                  Q_EMIT (this->SigSyncNodeDataPoolListElementRangeChanged(oru32_NodeIndex, oru32_DataPoolIndex,
-                                                                           oru32_DataPoolListIndex,
-                                                                           oru32_DataPoolListElementIndex,
-                                                                           orc_OscContent.c_MinValue,
-                                                                           orc_OscContent.c_MaxValue));
+                  this->m_HandleSyncNodeDataPoolListElementRangeChanged(oru32_NodeIndex, oru32_DataPoolIndex,
+                                                                        oru32_DataPoolListIndex,
+                                                                        oru32_DataPoolListElementIndex,
+                                                                        orc_OscContent.c_MinValue,
+                                                                        orc_OscContent.c_MaxValue);
                }
                if (rc_OscDataElement.e_Access != c_NewValuesContent.e_Access)
                {
@@ -5713,6 +5767,18 @@ const
       }
    }
    return q_Retval;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Clear system definition
+
+   \param[in]  oq_TriggerSyncSignals   Trigger sync signals
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_PuiSdHandlerNodeLogic::Clear(const bool oq_TriggerSyncSignals)
+{
+   this->mc_PreviousNodeErrorCheckResult.clear();
+   C_PuiSdHandlerData::Clear(oq_TriggerSyncSignals);
 }
 
 //----------------------------------------------------------------------------------------------------------------------

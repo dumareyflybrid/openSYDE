@@ -11,8 +11,8 @@
 /* -- Includes ------------------------------------------------------------------------------------------------------ */
 #include <QMainWindow>
 #include <QTimer>
-#include <QWinTaskbarProgress>
 
+#include "C_Can.hpp"
 #include "C_FlaSenDcBasicSequences.hpp"
 #include "C_FlaUpSequences.hpp"
 
@@ -40,7 +40,6 @@ public:
    ~C_FlaMainWindow(void) override;
 
 protected:
-   void showEvent(QShowEvent * const opc_Event) override;
    void closeEvent(QCloseEvent * const opc_Event) override;
    void keyPressEvent(QKeyEvent * const opc_KeyEvent) override;
 
@@ -71,12 +70,11 @@ private:
    void m_SetHeadingIcon(const uint8_t & oru8_State) const;
    void m_SetProgressBarColor(const bool & orq_Success) const;
 
-   uint32_t m_CalculateFileBytesFlashed(const uint8_t & oru8_ProgressInPercentage);
-   void m_InitWinTaskbar(void);
+   uint64_t m_CalculateFileBytesFlashed(const uint8_t & oru8_ProgressInPercentage) const;
    bool m_ErrorDetected(const bool & orq_ShowErrorMessage);
-   void m_UpdateBottomBar(const uint8_t & oru8_ProgressInPercentage);
+   void m_UpdateBottomBar(const uint8_t & oru8_ProgressInPercentage,
+                          const uint8_t & oru8_CurrentFileProgressInPercentage);
    void m_UpdateFileIcon(const uint32_t & oru32_FileIndex, const uint8_t & oru8_ProgressState) const;
-   void m_UpdateWinProgress(const bool & orq_Visible, const uint8_t & oru8_Value);
    uint8_t m_CalcualteTotalProgressInPercentage(void) const;
    void m_ResetProgressBar();
    void m_ResetFileIcons() const;
@@ -88,8 +86,10 @@ private:
    void m_StartElapsedTimer(void);
    void m_RestartElapsedTimer(void);
    bool m_ShowErrorMessage(void);
+   void m_SetTotalHexFileSizeInBytes(const uint64_t ou64_TotalHexFileSizeInBytes);
 
    stw::opensyde_gui_logic::C_FlaUpSequences * mpc_UpSequences;
+   stw::can::C_Can * mpc_CanDispatcher;
    QTimer mc_TimerUpdate;
    QTimer mc_SecTimer;
    QElapsedTimer mc_ElapsedTimer;
@@ -99,10 +99,10 @@ private:
 
    uint32_t mu32_FlashedFilesCounter;
    uint64_t mu64_FlashedBytes;
-   uint32_t mu32_FlashedBytesTmp;
+   uint64_t mu64_FlashedBytesTmp;
    bool mq_NewFile;
-
-   QWinTaskbarProgress * mpc_Progress;
+   uint64_t mu64_TotalHexFileSizeInBytes;
+   uint64_t mu64_AllHexFilesSizeInBytes;
 };
 
 /* -- Extern Global Variables --------------------------------------------------------------------------------------- */

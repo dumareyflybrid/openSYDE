@@ -41,13 +41,20 @@ public:
    void SetNodeDataLoggerJob(const uint32_t ou32_NodeIndex, const uint32_t ou32_DataLoggerJobIndex);
    void InitStaticNames(void) const;
    void ReloadDataElements(void);
+   void GetElementLocationCount(uint32_t & oru32_LocalElements, uint32_t & oru32_RemoteElements);
+
+   //The signals keyword is necessary for Qt signal slot functionality
+   //lint -save -e1736
+Q_SIGNALS:
+   //lint -restore
+   void SigNumElementsChanged();
 
 private:
    void m_AddClicked(void);
    void m_UpdateUi() const;
    void m_UpdateSelection() const;
    void m_LoadDataElements();
-   void m_OnDataChangedInModel(const QModelIndex orc_Index, const QString oc_Data);
+   void m_OnDataChangedInModel(const QModelIndex & orc_Index, const QString oc_Data);
    void m_UpdateCustomLoggingName(const uint32_t ou32_Index, const QString oc_Data, const bool oq_UseCustomName);
    void m_SetupContextMenu(void);
    void m_OnCustomContextMenuRequested(const QPoint & orc_Pos);

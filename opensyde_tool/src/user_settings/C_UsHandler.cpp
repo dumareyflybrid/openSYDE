@@ -114,6 +114,7 @@ void C_UsHandler::SetDefault(void)
    this->mc_ScreenPos = QPoint(50, 50);
    this->mc_AppSize = QSize(1000, 700);
    this->mq_AppMaximized = true;
+   this->mu32_ScreenIndex = 0;
 
    this->mc_SdTopologyToolboxPos = QPoint(-1, -1);
    this->mc_SdTopologyToolboxSize = QSize(600, 400);
@@ -212,6 +213,18 @@ QSize C_UsHandler::GetAppSize(void) const
 bool C_UsHandler::GetAppMaximized(void) const
 {
    return this->mq_AppMaximized;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get recent application screen index (for multi screen setup)
+
+   \return
+   Screen index
+*/
+//----------------------------------------------------------------------------------------------------------------------
+uint32_t C_UsHandler::GetAppScreenIndex(void) const
+{
+   return this->mu32_ScreenIndex;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -738,6 +751,69 @@ QString C_UsHandler::GetLastKnownCsvExportPath() const
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known Pem file path
+
+   \return
+   Last known Pem file path
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QString C_UsHandler::GetLastKnownAddPemFilePath() const
+{
+   return this->mc_LastKnownAddPemFilePath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known Update Pem  File Paths
+
+   \return
+   std::vector<QString>
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QStringList C_UsHandler::GetLastKnownUpdatePemFilePaths() const
+{
+   return this->mc_PemFilePaths;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known public pem file path
+
+   \return
+   Last known public pem file
+
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QString C_UsHandler::GetLastKnownPublicPemFilePath() const
+{
+   return this->mc_LastKnownPublicPemFilePath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known pem file password
+
+   \return
+   Last known pem file password
+
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QString C_UsHandler::GetLastKnownPemFilePassword() const
+{
+   return this->mc_LastKnownPemFilePassword;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known secure certificate package file path
+
+   \return
+   Last known secure certificate package
+
+*/
+//----------------------------------------------------------------------------------------------------------------------
+QString C_UsHandler::GetLastKnownSecureCertificatePackagePath() const
+{
+   return this->mc_LastKnownSecureCertificatePackagePath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Get last known private key path (PEM file for secure update)
 
    \return
@@ -748,6 +824,31 @@ QString C_UsHandler::GetLastKnownCsvExportPath() const
 QString C_UsHandler::GetLastKnownPrivateKeyPath() const
 {
    return this->mc_LastKnownPrivateKeyPath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known Add PEM file state
+
+   \return
+   last known Add PEM file state
+
+*/
+//----------------------------------------------------------------------------------------------------------------------
+bool C_UsHandler::GetLastKnownAddPemFileState() const
+{
+   return this->mq_LastKnownAddPemFileState;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Get last known secure update config state
+
+   \return
+   last known secure update config state
+*/
+//----------------------------------------------------------------------------------------------------------------------
+bool C_UsHandler::GetLastKnownSecureUpdateConfigState() const
+{
+   return this->mq_LastKnownSecureUpdateConfigState;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1008,6 +1109,17 @@ void C_UsHandler::SetAppSize(const QSize & orc_New)
 void C_UsHandler::SetAppMaximized(const bool oq_New)
 {
    this->mq_AppMaximized = oq_New;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set recent application screen index (for multi screen setup)
+
+   \param[in]  ou32_New    New screen index
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetAppScreenIndex(const uint32_t ou32_New)
+{
+   this->mu32_ScreenIndex = ou32_New;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1430,6 +1542,83 @@ void C_UsHandler::SetLastKnownJ1939CatalogPath(const QString & orc_NewPath)
 void C_UsHandler::SetLastKnownCsvExportPath(const QString & orc_NewPath)
 {
    this->mc_LastKnownServiceProjectPath = orc_NewPath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known Pem file path
+
+   \param[in]  orc_NewPath    Pem file path
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownAddPemFilePath(const QString & orc_NewPath)
+{
+   this->mc_LastKnownAddPemFilePath = orc_NewPath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief   Set last known Update Pem File Paths
+
+   \param[in]  orc_PemFilePaths   vector of pem file paths
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownUpdatePemFilePaths(const QStringList & orc_PemFilePaths)
+{
+   this->mc_PemFilePaths = orc_PemFilePaths;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known public pem file path
+
+   \param[in]  orc_NewPath    PEM file path
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownPublicPemFilePath(const QString & orc_NewPath)
+{
+   this->mc_LastKnownPublicPemFilePath = orc_NewPath;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known pem file password
+
+   \param[in]  orc_Password    pem file password
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownPemFilePassword(const QString & orc_Password)
+{
+   this->mc_LastKnownPemFilePassword = orc_Password;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known Add pem file state
+
+   \param[in]  orq_IsEnabled    Add pem file state
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownAddPemFileState(const bool & orq_IsEnabled)
+{
+   this->mq_LastKnownAddPemFileState = orq_IsEnabled;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known secure update config state
+
+   \param[in]  orq_IsEnabled    secure update config state
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownSecureUpdateConfigState(const bool & orq_IsEnabled)
+{
+   this->mq_LastKnownSecureUpdateConfigState = orq_IsEnabled;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set last known secure certificate package path
+
+   \param[in]  orc_NewPath    secure certificate package path
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetLastKnownSecureCertificatePackagePath(const QString & orc_NewPath)
+{
+   this->mc_LastKnownSecureCertificatePackagePath = orc_NewPath;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -1999,6 +2188,52 @@ void C_UsHandler::SetProjSdNodeSelectedHalcChannel(const QString & orc_NodeName,
    {
       C_UsNode c_Node;
       c_Node.SetSelectedHalcChannel(orc_Value);
+      this->mc_ProjSdNode.insert(orc_NodeName, c_Node);
+   }
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set project system definition node selected DataLogger LogJob Index
+
+   \param[in]  orc_NodeName   Node name
+   \param[in]  os32_LogJobIndex      LogJob Index
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetProjSdNodeSelectedDataLoggerLogJobIndex(const QString & orc_NodeName,
+                                                             const int32_t os32_LogJobIndex)
+{
+   if (this->mc_ProjSdNode.contains(orc_NodeName) == true)
+   {
+      //Do not insert as this will replace all currently known user settings for this item
+      this->mc_ProjSdNode.operator [](orc_NodeName).SetSelectedDataLoggerLogJobIndex(os32_LogJobIndex);
+   }
+   else
+   {
+      C_UsNode c_Node;
+      c_Node.SetSelectedDataLoggerLogJobIndex(os32_LogJobIndex);
+      this->mc_ProjSdNode.insert(orc_NodeName, c_Node);
+   }
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Set project system definition node DataLogger Overview widget selected
+
+   \param[in]  orc_NodeName   Node name
+   \param[in]  oq_IsOverviewWidgetSelected      IsOverviewWidgetSelected
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_UsHandler::SetProjSdNodeIsOverviewWidgetSelected(const QString & orc_NodeName,
+                                                        const bool oq_IsOverviewWidgetSelected)
+{
+   if (this->mc_ProjSdNode.contains(orc_NodeName) == true)
+   {
+      //Do not insert as this will replace all currently known user settings for this item
+      this->mc_ProjSdNode.operator [](orc_NodeName).SetIsOverviewWidgetSelected(oq_IsOverviewWidgetSelected);
+   }
+   else
+   {
+      C_UsNode c_Node;
+      c_Node.SetIsOverviewWidgetSelected(true);
       this->mc_ProjSdNode.insert(orc_NodeName, c_Node);
    }
 }

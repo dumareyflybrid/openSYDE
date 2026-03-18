@@ -80,6 +80,7 @@ C_SyvUpPacListWidget::C_SyvUpPacListWidget(QWidget * const opc_Parent) :
    mpc_ShowFileInfoAction(NULL),
    mpc_RemoveAllNodeFilesAction(NULL),
    mpc_HideShowOptionalSectionsAction(NULL),
+   mpc_AddSecurityCertificatePackageAction(NULL),
    mpc_SkipUpdateOfFile(NULL),
    mpc_ShowInExplorerAction(NULL),
    mc_LastPath(""),
@@ -698,6 +699,7 @@ void C_SyvUpPacListWidget::ImportConfig(void)
                                                {1} or {1,1,1} means add signature for all or individual nodes
    \param[in]  orc_NodeSignaturePemFiles  list of all nodes contains information which pem file to use for which node
                                           e.g. {pem} or {pem1, pem2, pem3} for all or individual nodes
+   \param[in]  oc_CurrentSelectedVersion    Current Selected Version of SydeFlash
 
 */
 //----------------------------------------------------------------------------------------------------------------------
@@ -705,7 +707,8 @@ void C_SyvUpPacListWidget::CreateServiceUpdatePackage(const bool oq_SaveAsFile, 
                                                       const std::vector<uint8_t> & orc_EncryptNodes,
                                                       const std::vector<C_SclString> & orc_EncryptNodesPassword,
                                                       const std::vector<uint8_t> & orc_AddSignatureNodes,
-                                                      const std::vector<C_SclString> & orc_NodeSignaturePemFiles)
+                                                      const std::vector<C_SclString> & orc_NodeSignaturePemFiles,
+                                                      const QString oc_CurrentSelectedVersion)
 {
    const C_PuiSvData * const pc_ViewData = C_PuiSvHandler::h_GetInstance()->GetView(this->mu32_ViewIndex);
 
@@ -723,20 +726,28 @@ void C_SyvUpPacListWidget::CreateServiceUpdatePackage(const bool oq_SaveAsFile, 
    // User has the option to save the update package in the new or old version
    if (oq_SaveAsFile)
    {
-      // New version
-      c_FilterName =
-         static_cast<QString>(C_GtGetText::h_GetText("openSYDE Service Update Package File")) +
-         " (*" +
-         static_cast<QString>(C_GtGetText::h_GetText(C_OscSupServiceUpdatePackageV1::
-                                                     h_GetPackageExtension().
-                                                     c_str())) + ")";
-      // Old version (called as "Version 1")
-      c_FilterName +=
-         static_cast<QString>(C_GtGetText::h_GetText(";;openSYDE Service Update Package File (Version 1)")) +
-         " (*" +
-         static_cast<QString>(C_GtGetText::h_GetText(C_OscSupServiceUpdatePackageV1::
-                                                     h_GetPackageExtension().
-                                                     c_str())) + ")";
+      if (oc_CurrentSelectedVersion == "Version 1")
+      {
+         c_FilterName =
+            static_cast<QString>(C_GtGetText::h_GetText("openSYDE Service Update Package File (Version 1)")) +
+            " (*" +
+            static_cast<QString>(C_GtGetText::h_GetText(C_OscSupServiceUpdatePackageV1::
+                                                        h_GetPackageExtension().
+                                                        c_str())) + ")";
+      }
+      else if (oc_CurrentSelectedVersion == "Version 2")
+      {
+         c_FilterName =
+            static_cast<QString>(C_GtGetText::h_GetText("openSYDE Service Update Package File")) +
+            " (*" +
+            static_cast<QString>(C_GtGetText::h_GetText(C_OscSupServiceUpdatePackageV1::
+                                                        h_GetPackageExtension().
+                                                        c_str())) + ")";
+      }
+      else
+      {
+         c_FilterName = "*";
+      }
 
       c_DefaultFilename += C_GtGetText::h_GetText("_ServiceUpdatePackage");
 
@@ -897,13 +908,8 @@ void C_SyvUpPacListWidget::CreateServiceUpdatePackage(const bool oq_SaveAsFile, 
             C_OgeWiCustomMessage c_MessageResult(this);
             c_MessageResult.SetHeading(C_GtGetText::h_GetText("Create Service Update Package"));
             c_MessageResult.SetDescription(C_GtGetText::h_GetText("Service Update Package successfully created."));
-            const QString c_Details =
-               static_cast<QString>("%1<a href=\"file:%2\"><span style=\"color: %3;\">%4</span></a>.").
-               arg(C_GtGetText::h_GetText("Package saved at ")).
-               arg(this->mc_LastPath).
-               arg(mc_STYLESHEET_GUIDE_COLOR_LINK).
-               arg(this->mc_LastPath);
-            c_MessageResult.SetDetails(c_Details);
+            c_MessageResult.SetDetails("Package saved at " +
+                                       C_Uti::h_GetLink(mc_LastPath, mc_STYLE_GUIDE_COLOR_LINK, mc_LastPath));
             c_MessageResult.SetCustomMinHeight(180, 250);
             c_MessageResult.Execute();
          }
@@ -1398,6 +1404,14 @@ void C_SyvUpPacListWidget::m_OnCustomContextMenuRequested(const QPoint & orc_Pos
             this->mpc_PemFileSettings->setVisible(false);
          }
 
+         if (this->mpc_SelectedNode->IsFileBased() == true)
+         {
+            this->mpc_AddSecurityCertificatePackageAction->setVisible(true);
+         }
+         else
+         {
+            this->mpc_AddSecurityCertificatePackageAction->setVisible(false);
+         }
          q_ShowContextMenu = true;
       }
    }
@@ -1439,6 +1453,12 @@ void C_SyvUpPacListWidget::m_SetupContextMenu(void)
 
    this->mpc_ShowFileInfoAction = this->mpc_ContextMenu->addAction(
       C_GtGetText::h_GetText("View File Information"), this, &C_SyvUpPacListWidget::m_ViewFileInfo);
+
+   this->mpc_AddSecurityCertificatePackageAction = this->mpc_ContextMenu->addAction(
+      C_GtGetText::h_GetText("Create Security Certificate Package"), this,
+      &C_SyvUpPacListWidget::m_AddSecurityCertificatePackage);
+
+   this->mpc_ContextMenu->addSeparator();
 
    this->mpc_HideShowOptionalSectionsAction = this->mpc_ContextMenu->addAction(
       C_GtGetText::h_GetText("Hide Empty Optional Sections"), this,
@@ -1873,4 +1893,13 @@ QString C_SyvUpPacListWidget::m_GetDialogPath(void)
    }
 
    return c_Folder;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Create Security Certificate package
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_SyvUpPacListWidget::m_AddSecurityCertificatePackage()
+{
+   this->mpc_SelectedNode->AddSecurityCertificatePackage();
 }

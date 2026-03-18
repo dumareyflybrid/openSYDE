@@ -150,6 +150,19 @@ void C_SdNdeDalLogJobDataSelectionWidget::ReloadDataElements()
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+/*! \brief  Returns the number of local and remote elements
+
+   \param[in,out]   oru32_LocalElements     Number of local elements
+   \param[in,out]   oru32_RemoteElements    Number of remote elements
+*/
+//----------------------------------------------------------------------------------------------------------------------
+void C_SdNdeDalLogJobDataSelectionWidget::GetElementLocationCount(uint32_t & oru32_LocalElements,
+                                                                  uint32_t & oru32_RemoteElements)
+{
+   this->mpc_Ui->pc_TableView->GetElementLocationCount(oru32_LocalElements, oru32_RemoteElements);
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Initializes all visible strings on the widget
 
 */
@@ -163,7 +176,6 @@ void C_SdNdeDalLogJobDataSelectionWidget::InitStaticNames() const
 
 //----------------------------------------------------------------------------------------------------------------------
 /*! \brief  Slot of Add icon clicked
-
 */
 //----------------------------------------------------------------------------------------------------------------------
 void C_SdNdeDalLogJobDataSelectionWidget::m_AddClicked()
@@ -173,8 +185,7 @@ void C_SdNdeDalLogJobDataSelectionWidget::m_AddClicked()
 
    C_SyvDaPeDataElementBrowse * const pc_Dialog = new C_SyvDaPeDataElementBrowse(*c_New, 0U, true, false, true, true,
                                                                                  true, true, NULL, false,
-                                                                                 this->mu32_NodeIndex,
-                                                                                 this->mu32_DataLoggerJobIndex);
+                                                                                 this->mu32_NodeIndex);
 
    //Resize
    c_New->SetSize(QSize(800, 800));
@@ -213,6 +224,7 @@ void C_SdNdeDalLogJobDataSelectionWidget::m_AddClicked()
                C_PuiSdHandler::h_GetInstance()->AddDataLoggerElement(this->mu32_NodeIndex,
                                                                      this->mu32_DataLoggerJobIndex,
                                                                      c_Data);
+               Q_EMIT this->SigNumElementsChanged();
             }
          }
       }
@@ -250,12 +262,15 @@ void C_SdNdeDalLogJobDataSelectionWidget::m_LoadDataElements()
       C_PuiSdHandler::h_GetInstance()->GetDataLoggerJob(
          this->mu32_NodeIndex, this->mu32_DataLoggerJobIndex);
 
-   this->mc_DataElements.clear();
-   this->mc_DataElements.reserve(pc_DataLoggerJob->c_ConfiguredDataElements.size());
-
-   for (uint32_t u32_Counter = 0U; u32_Counter < pc_DataLoggerJob->c_ConfiguredDataElements.size(); ++u32_Counter)
+   if (pc_DataLoggerJob != NULL)
    {
-      this->mc_DataElements.push_back(pc_DataLoggerJob->c_ConfiguredDataElements[u32_Counter]);
+      this->mc_DataElements.clear();
+      this->mc_DataElements.reserve(pc_DataLoggerJob->c_ConfiguredDataElements.size());
+
+      for (uint32_t u32_Counter = 0U; u32_Counter < pc_DataLoggerJob->c_ConfiguredDataElements.size(); ++u32_Counter)
+      {
+         this->mc_DataElements.push_back(pc_DataLoggerJob->c_ConfiguredDataElements[u32_Counter]);
+      }
    }
 }
 
@@ -333,7 +348,7 @@ void C_SdNdeDalLogJobDataSelectionWidget::m_UpdateSelection() const
 
 */
 //----------------------------------------------------------------------------------------------------------------------
-void C_SdNdeDalLogJobDataSelectionWidget::m_OnDataChangedInModel(const QModelIndex orc_Index, const QString oc_Data)
+void C_SdNdeDalLogJobDataSelectionWidget::m_OnDataChangedInModel(const QModelIndex & orc_Index, const QString oc_Data)
 {
    bool q_UseCustomName = true;
    QString c_Data(oc_Data);
@@ -445,5 +460,6 @@ void C_SdNdeDalLogJobDataSelectionWidget::m_DeleteSelectedDataElements(void)
       this->mpc_Ui->pc_TableView->DeleteSelectedElements();
       this->m_UpdateSelection();
       this->m_UpdateUi();
+      Q_EMIT this->SigNumElementsChanged();
    }
 }
